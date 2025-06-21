@@ -145,7 +145,7 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
       
       if (result.success) {
         console.log('OTP verified successfully, user authenticated');
-        setSignupStep('password');
+        setSignupStep('password'); // Move to password step instead of complete
       } else {
         console.error('OTP verification failed:', result.error);
         setError(result.error || 'Invalid verification code');
@@ -158,7 +158,7 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
     }
   };
 
-  // SIGNUP STEP 3: Set password
+  // SIGNUP STEP 3: Set password (NEW STEP)
   const handleSetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -316,14 +316,14 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
                 {currentView === 'login' ? 'Welcome Back' : 
                  signupStep === 'email' ? 'Create Account' :
                  signupStep === 'otp' ? 'Verify Email' :
-                 signupStep === 'password' ? 'Set Password' :
+                 signupStep === 'password' ? 'Create Password' :
                  'Account Created!'}
               </h2>
               <p className="text-gray-400 text-center mt-2">
                 {currentView === 'login' ? 'Sign in with your email and password' : 
                  signupStep === 'email' ? 'Enter your email to get started' :
                  signupStep === 'otp' ? `We sent a code to ${formData.email}` :
-                 signupStep === 'password' ? 'Choose a secure password' :
+                 signupStep === 'password' ? 'Choose a secure password for your account' :
                  'Welcome to Zenlit!'}
               </p>
             </div>
@@ -496,7 +496,7 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
                   </div>
                 )}
 
-                {/* STEP 3: Set Password */}
+                {/* STEP 3: Set Password (NEW STEP) */}
                 {signupStep === 'password' && (
                   <form onSubmit={handleSetPassword} className="space-y-4">
                     <div className="bg-green-900/30 border border-green-700 rounded-lg p-3 mb-4">
@@ -576,7 +576,7 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
                           Setting Password...
                         </>
                       ) : (
-                          "Set Password"
+                          "Create Password"
                       )}
                     </button>
                   </form>
