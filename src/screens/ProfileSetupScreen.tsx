@@ -141,18 +141,30 @@ export const ProfileSetupScreen: React.FC<Props> = ({ onComplete, onBack }) => {
         throw new Error(usernameResult.error || 'Failed to reserve username');
       }
 
-      let profilePhotoUrl = null;
+      let profilePhotoUrl: string | undefined = undefined;
 
       // Handle profile photo upload if a new photo was selected
       if (profileData.profilePhoto && profileData.profilePhoto.startsWith('data:')) {
         console.log('Uploading profile photo...');
-        profilePhotoUrl = await uploadProfileImage(user.id, profileData.profilePhoto);
         
-        if (!profilePhotoUrl) {
-          // Photo upload failed, but continue with profile creation
-          console.warn('Profile photo upload failed, continuing without photo');
-        } else {
-          console.log('Profile photo uploaded successfully:', profilePhotoUrl);
+        try {
+          const uploadResult = await uploadProfileImage(user.id, profileData.profilePhoto);
+          
+          if (uploadResult && typeof uploadResult === 'string') {
+            // If uploadProfileImage returns a string directly
+            profilePhotoUrl = uploadResult;
+            console.log('Profile photo uploaded successfully:', profilePhotoUrl);
+          } else if (uploadResult && typeof uploadResult === 'object' && uploadResult.publicUrl) {
+            // If uploadProfileImage returns an object with publicUrl
+            profilePhotoUrl = uploadResult.publicUrl || undefined;
+            console.log('Profile photo uploaded successfully:', profilePhotoUrl);
+          } else {
+            // Photo upload failed, but continue with profile creation
+            console.warn('Profile photo upload failed, continuing without photo');
+          }
+        } catch (uploadError) {
+          console.error('Profile photo upload error:', uploadError);
+          // Continue without photo if upload fails
         }
       }
 
@@ -163,7 +175,7 @@ export const ProfileSetupScreen: React.FC<Props> = ({ onComplete, onBack }) => {
         bio: profileData.bio,
         dateOfBirth: profileData.dateOfBirth,
         gender: profileData.gender, // Now guaranteed to be 'male' | 'female'
-        profilePhotoUrl: profilePhotoUrl || undefined
+        profilePhotoUrl: profilePhotoUrl
       });
 
       if (!result.success) {
