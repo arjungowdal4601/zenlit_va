@@ -26,17 +26,6 @@ type LatestMessageQueryResult = {
   sender_id: string;
 };
 
-// Type definitions for realtime payload
-interface MessagePayload {
-  new: Database['public']['Tables']['messages']['Row'];
-  old?: Database['public']['Tables']['messages']['Row'];
-}
-
-interface ConversationPayload {
-  new: Database['public']['Tables']['conversations']['Row'];
-  old?: Database['public']['Tables']['conversations']['Row'];
-}
-
 export interface Conversation {
   id: string;
   participant_1_id: string;
@@ -430,7 +419,7 @@ export const markMessagesAsRead = async (
   }
 };
 
-// Subscribe to new messages in a conversation
+// Subscribe to new messages in a conversation using Supabase v2 syntax
 export const subscribeToMessages = (
   conversationId: string,
   onNewMessage: (message: MessageWithSender) => void,
@@ -448,11 +437,13 @@ export const subscribeToMessages = (
         table: 'messages',
         filter: `conversation_id=eq.${conversationId}`
       },
-      async (payload: MessagePayload) => {
+      async (payload) => {
         console.log('🔍 [subscribeToMessages] New message received:', payload);
 
-        // Now we can safely access payload.new.id with proper typing
-        if (!payload.new?.id) {
+        // Type-safe access to payload.new
+        const newMessage = payload.new as Database['public']['Tables']['messages']['Row'];
+        
+        if (!newMessage?.id) {
           console.error('🔍 [subscribeToMessages] Invalid payload - missing message ID');
           onError('Invalid message payload received');
           return;
@@ -465,7 +456,7 @@ export const subscribeToMessages = (
             *,
             sender:sender_id(id, name, profile_photo_url)
           `)
-          .eq('id', payload.new.id)
+          .eq('id', newMessage.id)
           .single() as { data: MessageQueryResult | null; error: any };
 
         if (error) {
@@ -502,7 +493,7 @@ export const subscribeToMessages = (
   return subscription;
 };
 
-// Subscribe to conversation updates
+// Subscribe to conversation updates using Supabase v2 syntax
 export const subscribeToConversations = (
   userId: string,
   onConversationUpdate: (conversation: Conversation) => void,
@@ -520,11 +511,13 @@ export const subscribeToConversations = (
         table: 'conversations',
         filter: `or(participant_1_id.eq.${userId},participant_2_id.eq.${userId})`
       },
-      async (payload: ConversationPayload) => {
+      async (payload) => {
         console.log('🔍 [subscribeToConversations] Conversation update received:', payload);
 
-        // Now we can safely access payload.new.id with proper typing
-        if (!payload.new?.id) {
+        // Type-safe access to payload.new
+        const newConversation = payload.new as Database['public']['Tables']['conversations']['Row'];
+        
+        if (!newConversation?.id) {
           console.error('🔍 [subscribeToConversations] Invalid payload - missing conversation ID');
           onError('Invalid conversation payload received');
           return;
@@ -538,7 +531,7 @@ export const subscribeToConversations = (
             participant_1:participant_1_id(id, name, username, profile_photo_url),
             participant_2:participant_2_id(id, name, username, profile_photo_url)
           `)
-          .eq('id', payload.new.id)
+          .eq('id', newConversation.id)
           .single() as { data: ConversationQueryResult | null; error: any };
 
         if (error) {
