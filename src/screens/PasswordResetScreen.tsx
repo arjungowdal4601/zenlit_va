@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ChevronLeftIcon, CheckCircleIcon, EnvelopeIcon, EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
 import { sendPasswordResetOTP, verifyPasswordResetOTP, resetPassword } from '../lib/auth';
+import { supabase } from '../lib/supabase';
 
 interface Props {
   onBack: () => void;
@@ -19,9 +20,55 @@ export const PasswordResetScreen: React.FC<Props> = ({ onBack }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [countdown, setCountdown] = useState(0);
+  const [isRecoveryFlow, setIsRecoveryFlow] = useState(false);
+
+  // Check for recovery flow on component mount
+  useEffect(() => {
+    checkForRecoveryFlow();
+  }, []);
+
+  const checkForRecoveryFlow = async () => {
+    try {
+      // Check URL parameters for recovery flow
+      const url = new URL(window.location.href);
+      const type = url.searchParams.get('type');
+      const accessToken = url.searchParams.get('access_token');
+      const refreshToken = url.searchParams.get('refresh_token');
+
+      console.log('🔍 Checking recovery flow:', { type, hasAccessToken: !!accessToken });
+
+      if (type === 'recovery' && accessToken && refreshToken) {
+        console.log('🔄 Recovery flow detected, setting session...');
+        setIsRecoveryFlow(true);
+        
+        // Set the session with the tokens from the URL
+        const { data, error } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken
+        });
+
+        if (error) {
+          console.error('❌ Session setup error:', error);
+          setError('Invalid or expired reset link. Please try again.');
+          return;
+        }
+
+        if (data.session) {
+          console.log('✅ Session established, showing password reset form');
+          // Clear URL parameters for security
+          window.history.replaceState({}, document.title, window.location.pathname);
+          // Go directly to new password step
+          setStep('newPassword');
+        }
+      }
+    } catch (error) {
+      console.error('❌ Recovery flow check error:', error);
+      setError('Failed to process reset link. Please try again.');
+    }
+  };
 
   // Countdown timer effect for OTP resend
-  React.useEffect(() => {
+  useEffect(() => {
     let timer: NodeJS.Timeout;
     if (countdown > 0) {
       timer = setTimeout(() => {
@@ -107,7 +154,7 @@ export const PasswordResetScreen: React.FC<Props> = ({ onBack }) => {
     }
   };
 
-  const handleResetPassword = async (e: React.FormEvent) => {
+  const handleSetNewPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
@@ -124,18 +171,29 @@ export const PasswordResetScreen: React.FC<Props> = ({ onBack }) => {
     setIsLoading(true);
     
     try {
-      console.log('Resetting password for authenticated user');
-      const result = await resetPassword(formData.newPassword);
+      console.log('🔄 Updating password for authenticated user...');
       
-      if (result.success) {
-        console.log('Password reset successfully');
-        setStep('success');
-      } else {
-        console.error('Password reset failed:', result.error);
-        setError(result.error || 'Failed to reset password');
+      // Update the user's password using Supabase
+      const { data, error } = await supabase.auth.updateUser({
+        password: formData.newPassword
+      });
+
+      if (error) {
+        console.error('❌ Password update failed:', error);
+        setError(error.message || 'Failed to update password');
+        return;
       }
+
+      console.log('✅ Password updated successfully');
+      setStep('success');
+      
+      // Auto-redirect after showing success message
+      setTimeout(() => {
+        onBack(); // This will take them back to login
+      }, 3000);
+
     } catch (error) {
-      console.error('Password reset error:', error);
+      console.error('❌ Password update error:', error);
       setError('Network error. Please try again.');
     } finally {
       setIsLoading(false);
@@ -282,13 +340,16 @@ export const PasswordResetScreen: React.FC<Props> = ({ onBack }) => {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
           </svg>
         </div>
-        <h2 className="text-2xl font-bold text-white mb-2">Create New Password</h2>
+        <h2 className="text-2xl font-bold text-white mb-2">Set New Password</h2>
         <p className="text-gray-400">
-          Choose a strong password for your account
+          {isRecoveryFlow 
+            ? 'Please set a new password for your account' 
+            : 'Choose a strong password for your account'
+          }
         </p>
       </div>
 
-      <form onSubmit={handleResetPassword} className="space-y-4">
+      <form onSubmit={handleSetNewPassword} className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-gray-300 mb-2">
             New Password
@@ -354,10 +415,10 @@ export const PasswordResetScreen: React.FC<Props> = ({ onBack }) => {
           {isLoading ? (
             <>
               <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              Resetting Password...
+              Updating Password...
             </>
           ) : (
-            "Reset Password"
+            "Set New Password"
           )}
         </button>
       </form>
@@ -369,16 +430,22 @@ export const PasswordResetScreen: React.FC<Props> = ({ onBack }) => {
       <div className="w-20 h-20 bg-green-600 rounded-full flex items-center justify-center mx-auto mb-4 animate-pulse">
         <CheckCircleIcon className="w-10 h-10 text-white" />
       </div>
-      <h2 className="text-2xl font-bold text-white mb-2">Password Reset Successful!</h2>
+      <h2 className="text-2xl font-bold text-white mb-2">Password Updated!</h2>
       <p className="text-gray-400 mb-6">
-        Your password has been successfully reset. You can now sign in with your new password.
+        Your password has been successfully updated. You will be redirected to the login page shortly.
       </p>
+      
+      <div className="bg-green-900/30 border border-green-700 rounded-lg p-4">
+        <p className="text-green-400 text-sm">
+          ✅ Password securely updated in your account
+        </p>
+      </div>
       
       <button
         onClick={onBack}
         className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 active:scale-95 transition-all"
       >
-        Back to Sign In
+        Continue to Sign In
       </button>
     </div>
   );
@@ -388,17 +455,19 @@ export const PasswordResetScreen: React.FC<Props> = ({ onBack }) => {
       <div className="min-h-screen min-h-[100dvh] flex items-center justify-center p-4 py-8">
         <div className="w-full max-w-md">
           {/* Header */}
-          <div className="flex items-center mb-6">
-            <button
-              onClick={onBack}
-              className="mr-4 p-2 rounded-full hover:bg-gray-800 active:scale-95 transition-all"
-            >
-              <ChevronLeftIcon className="w-5 h-5 text-white" />
-            </button>
-            <div className="flex items-center">
-              <h1 className="text-xl font-bold text-white">Zenlit</h1>
+          {!isRecoveryFlow && (
+            <div className="flex items-center mb-6">
+              <button
+                onClick={onBack}
+                className="mr-4 p-2 rounded-full hover:bg-gray-800 active:scale-95 transition-all"
+              >
+                <ChevronLeftIcon className="w-5 h-5 text-white" />
+              </button>
+              <div className="flex items-center">
+                <h1 className="text-xl font-bold text-white">Zenlit</h1>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Form Container */}
           <div className="bg-gray-900 rounded-2xl p-6 border border-gray-800">
@@ -409,6 +478,15 @@ export const PasswordResetScreen: React.FC<Props> = ({ onBack }) => {
               </div>
             )}
 
+            {/* Recovery Flow Info */}
+            {isRecoveryFlow && step === 'newPassword' && (
+              <div className="mb-4 bg-blue-900/30 border border-blue-700 rounded-lg p-3">
+                <p className="text-blue-400 text-sm">
+                  🔐 Password reset link verified. Please set your new password below.
+                </p>
+              </div>
+            )}
+
             {step === 'email' && renderEmailStep()}
             {step === 'otp' && renderOtpStep()}
             {step === 'newPassword' && renderNewPasswordStep()}
@@ -416,7 +494,7 @@ export const PasswordResetScreen: React.FC<Props> = ({ onBack }) => {
           </div>
 
           {/* Help Text */}
-          {step !== 'success' && (
+          {step !== 'success' && !isRecoveryFlow && (
             <div className="mt-6 text-center pb-8">
               <p className="text-xs text-gray-500">
                 Remember your password?{' '}

@@ -9,13 +9,14 @@ import { ProfileScreen } from './screens/ProfileScreen';
 import { CreatePostScreen } from './screens/CreatePostScreen';
 import { MessagesScreen } from './screens/MessagesScreen';
 import { EditProfileScreen } from './screens/EditProfileScreen';
+import { PasswordResetScreen } from './screens/PasswordResetScreen';
 import { UserGroupIcon, Squares2X2Icon, UserIcon, PlusIcon, ChatBubbleLeftIcon } from '@heroicons/react/24/outline';
 import { User } from './types';
 import { supabase, onAuthStateChange, ensureSession } from './lib/supabase';
 import { handleRefreshTokenError } from './lib/auth';
 
 export default function App() {
-  const [currentScreen, setCurrentScreen] = useState<'welcome' | 'login' | 'profileSetup' | 'app'>('welcome');
+  const [currentScreen, setCurrentScreen] = useState<'welcome' | 'login' | 'profileSetup' | 'passwordReset' | 'app'>('welcome');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userGender] = useState<'male' | 'female'>('male');
   const [activeTab, setActiveTab] = useState('radar');
@@ -63,8 +64,40 @@ export default function App() {
     }
   }, [isClient]);
 
+  // Check for password reset recovery flow on app load
+  useEffect(() => {
+    if (isClient) {
+      checkForPasswordResetFlow();
+    }
+  }, [isClient]);
+
+  const checkForPasswordResetFlow = () => {
+    try {
+      const url = new URL(window.location.href);
+      const type = url.searchParams.get('type');
+      const accessToken = url.searchParams.get('access_token');
+
+      console.log('🔍 Checking for password reset flow:', { type, hasAccessToken: !!accessToken });
+
+      if (type === 'recovery' && accessToken) {
+        console.log('🔄 Password reset recovery flow detected, showing password reset screen');
+        setCurrentScreen('passwordReset');
+        setIsLoading(false);
+        return true;
+      }
+    } catch (error) {
+      console.error('Error checking password reset flow:', error);
+    }
+    return false;
+  };
+
   const checkAuthStatus = async () => {
     try {
+      // First check if this is a password reset flow
+      if (checkForPasswordResetFlow()) {
+        return;
+      }
+
       if (!supabase) {
         console.warn('Supabase not available, using offline mode');
         setCurrentScreen('welcome');
@@ -209,6 +242,11 @@ export default function App() {
     }
   };
 
+  const handlePasswordResetComplete = () => {
+    console.log('Password reset completed, returning to login');
+    setCurrentScreen('login');
+  };
+
   const handleMessageUser = (user: User) => {
     console.log('🔍 [App] handleMessageUser called with user:', user.id);
     setSelectedChatUser(user);
@@ -272,6 +310,11 @@ export default function App() {
         </div>
       </div>
     );
+  }
+
+  // Show password reset screen if in recovery flow
+  if (currentScreen === 'passwordReset') {
+    return <PasswordResetScreen onBack={handlePasswordResetComplete} />;
   }
 
   // Show welcome screen first
