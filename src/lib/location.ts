@@ -226,7 +226,7 @@ export const hasLocationChanged = (
   return oldLatRounded !== newLatRounded || oldLonRounded !== newLonRounded;
 };
 
-// Get nearby users with exact coordinate match (same 2-decimal bucket)
+// Get nearby users with exact coordinate match (same 2-decimal bucket) and radar visibility
 export const getNearbyUsers = async (
   currentUserId: string,
   currentLocation: UserLocation,
@@ -248,7 +248,7 @@ export const getNearbyUsers = async (
 
     console.log('📍 Rounded coordinates for matching:', { latRounded, lonRounded });
 
-    // Get users with exact coordinate match (same location bucket)
+    // Get users with exact coordinate match (same location bucket) who haven't hidden from radar
     const { data: profiles, error } = await supabase
       .from('profiles')
       .select('*')
@@ -256,6 +256,7 @@ export const getNearbyUsers = async (
       .not('name', 'is', null)
       .eq('latitude', latRounded)
       .eq('longitude', lonRounded)
+      .eq('hide_from_radar', false) // Only show users who haven't hidden from radar
       .limit(limit);
 
     console.log('🔍 LOCATION DEBUG: Raw profiles from database:', profiles);
@@ -286,6 +287,7 @@ export const getNearbyUsers = async (
       console.log('👤 Profile name:', profile.name);
       console.log('👤 Profile latitude:', profile.latitude);
       console.log('👤 Profile longitude:', profile.longitude);
+      console.log('👤 Profile hide_from_radar:', profile.hide_from_radar);
 
       const userWithDistance = {
         ...profile,
@@ -297,7 +299,8 @@ export const getNearbyUsers = async (
         id: userWithDistance.id,
         name: userWithDistance.name,
         distance: userWithDistance.distance,
-        hasRealLocation: true
+        hasRealLocation: true,
+        hide_from_radar: userWithDistance.hide_from_radar
       });
 
       return userWithDistance;
@@ -320,6 +323,45 @@ export const getNearbyUsers = async (
     return {
       success: false,
       error: 'Failed to get nearby users'
+    };
+  }
+};
+
+// Update radar visibility setting
+export const updateRadarVisibility = async (
+  userId: string,
+  hideFromRadar: boolean
+): Promise<{
+  success: boolean;
+  error?: string;
+}> => {
+  try {
+    console.log('Updating radar visibility for user:', userId, 'hide:', hideFromRadar);
+
+    const { error } = await supabase
+      .from('profiles')
+      .update({
+        hide_from_radar: hideFromRadar,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', userId);
+
+    if (error) {
+      console.error('Radar visibility update error:', error);
+      return {
+        success: false,
+        error: 'Failed to update radar visibility'
+      };
+    }
+
+    console.log('Radar visibility updated successfully');
+    return { success: true };
+
+  } catch (error) {
+    console.error('Radar visibility update error:', error);
+    return {
+      success: false,
+      error: 'Failed to update radar visibility'
     };
   }
 };

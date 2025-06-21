@@ -23,6 +23,7 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isClient, setIsClient] = useState(false);
+  const [hideBottomNav, setHideBottomNav] = useState(false); // New state for hiding bottom nav
 
   // Ensure we're on the client side before doing anything
   useEffect(() => {
@@ -204,6 +205,7 @@ export default function App() {
     setActiveTab('radar');
     setSelectedUser(null);
     setSelectedChatUser(null);
+    setHideBottomNav(false); // Reset bottom nav visibility
   };
 
   const handleLogout = async () => {
@@ -224,6 +226,7 @@ export default function App() {
 
   const handleMessageUser = (user: User) => {
     setSelectedChatUser(user);
+    setHideBottomNav(true); // Hide bottom nav when entering chat
   };
 
   const handleViewProfile = (user: User) => {
@@ -233,6 +236,19 @@ export default function App() {
 
   const handleNavigateToCreate = () => {
     setActiveTab('create');
+  };
+
+  // Handle navigation changes to show/hide bottom nav
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab);
+    setHideBottomNav(false); // Show bottom nav when changing tabs
+    setSelectedChatUser(null); // Clear selected chat user
+  };
+
+  // Handle back from chat
+  const handleBackFromChat = () => {
+    setSelectedChatUser(null);
+    setHideBottomNav(false); // Show bottom nav when exiting chat
   };
 
   // Don't render anything until we're on the client
@@ -284,7 +300,7 @@ export default function App() {
               <div className="h-full overflow-y-auto mobile-scroll">
                 <RadarScreen 
                   userGender={userGender} 
-                  onNavigate={setActiveTab}
+                  onNavigate={handleTabChange}
                   onViewProfile={setSelectedUser}
                   onMessageUser={handleMessageUser}
                 />
@@ -304,8 +320,9 @@ export default function App() {
               <div className="h-full">
                 <MessagesScreen 
                   selectedUser={selectedChatUser}
-                  onClearSelectedUser={() => setSelectedChatUser(null)}
+                  onClearSelectedUser={handleBackFromChat}
                   onViewProfile={handleViewProfile}
+                  onHideBottomNav={setHideBottomNav}
                 />
               </div>
             )}
@@ -323,60 +340,62 @@ export default function App() {
           </div>
         </main>
 
-        {/* Bottom Navigation - Fixed for mobile */}
-        <nav className="bg-gray-900 border-t border-gray-800 flex-shrink-0 bottom-nav">
-          <div className="flex justify-around items-center py-2 px-4 h-16">
-            <button
-              onClick={() => setActiveTab('radar')}
-              className={`nav-button-mobile flex flex-col items-center justify-center p-2 rounded-lg transition-colors ${
-                activeTab === 'radar' ? 'text-blue-500' : 'text-gray-400'
-              }`}
-            >
-              <UserGroupIcon className="h-6 w-6 mb-1" />
-              <span className="text-xs font-medium">Radar</span>
-            </button>
-            
-            <button
-              onClick={() => setActiveTab('feed')}
-              className={`nav-button-mobile flex flex-col items-center justify-center p-2 rounded-lg transition-colors ${
-                activeTab === 'feed' ? 'text-blue-500' : 'text-gray-400'
-              }`}
-            >
-              <Squares2X2Icon className="h-6 w-6 mb-1" />
-              <span className="text-xs font-medium">Feed</span>
-            </button>
+        {/* Bottom Navigation - Fixed for mobile - Hide when in chat */}
+        {!hideBottomNav && (
+          <nav className="bg-gray-900 border-t border-gray-800 flex-shrink-0 bottom-nav">
+            <div className="flex justify-around items-center py-2 px-4 h-16">
+              <button
+                onClick={() => handleTabChange('radar')}
+                className={`nav-button-mobile flex flex-col items-center justify-center p-2 rounded-lg transition-colors ${
+                  activeTab === 'radar' ? 'text-blue-500' : 'text-gray-400'
+                }`}
+              >
+                <UserGroupIcon className="h-6 w-6 mb-1" />
+                <span className="text-xs font-medium">Radar</span>
+              </button>
+              
+              <button
+                onClick={() => handleTabChange('feed')}
+                className={`nav-button-mobile flex flex-col items-center justify-center p-2 rounded-lg transition-colors ${
+                  activeTab === 'feed' ? 'text-blue-500' : 'text-gray-400'
+                }`}
+              >
+                <Squares2X2Icon className="h-6 w-6 mb-1" />
+                <span className="text-xs font-medium">Feed</span>
+              </button>
 
-            <button
-              onClick={() => setActiveTab('create')}
-              className={`nav-button-mobile flex flex-col items-center justify-center p-2 rounded-lg transition-colors ${
-                activeTab === 'create' ? 'text-blue-500' : 'text-gray-400'
-              }`}
-            >
-              <PlusIcon className="h-6 w-6 mb-1" />
-              <span className="text-xs font-medium">Create</span>
-            </button>
+              <button
+                onClick={() => handleTabChange('create')}
+                className={`nav-button-mobile flex flex-col items-center justify-center p-2 rounded-lg transition-colors ${
+                  activeTab === 'create' ? 'text-blue-500' : 'text-gray-400'
+                }`}
+              >
+                <PlusIcon className="h-6 w-6 mb-1" />
+                <span className="text-xs font-medium">Create</span>
+              </button>
 
-            <button
-              onClick={() => setActiveTab('messages')}
-              className={`nav-button-mobile flex flex-col items-center justify-center p-2 rounded-lg transition-colors ${
-                activeTab === 'messages' ? 'text-blue-500' : 'text-gray-400'
-              }`}
-            >
-              <ChatBubbleLeftIcon className="h-6 w-6 mb-1" />
-              <span className="text-xs font-medium">Messages</span>
-            </button>
-            
-            <button
-              onClick={() => setActiveTab('profile')}
-              className={`nav-button-mobile flex flex-col items-center justify-center p-2 rounded-lg transition-colors ${
-                activeTab === 'profile' ? 'text-blue-500' : 'text-gray-400'
-              }`}
-            >
-              <UserIcon className="h-6 w-6 mb-1" />
-              <span className="text-xs font-medium">Profile</span>
-            </button>
-          </div>
-        </nav>
+              <button
+                onClick={() => handleTabChange('messages')}
+                className={`nav-button-mobile flex flex-col items-center justify-center p-2 rounded-lg transition-colors ${
+                  activeTab === 'messages' ? 'text-blue-500' : 'text-gray-400'
+                }`}
+              >
+                <ChatBubbleLeftIcon className="h-6 w-6 mb-1" />
+                <span className="text-xs font-medium">Messages</span>
+              </button>
+              
+              <button
+                onClick={() => handleTabChange('profile')}
+                className={`nav-button-mobile flex flex-col items-center justify-center p-2 rounded-lg transition-colors ${
+                  activeTab === 'profile' ? 'text-blue-500' : 'text-gray-400'
+                }`}
+              >
+                <UserIcon className="h-6 w-6 mb-1" />
+                <span className="text-xs font-medium">Profile</span>
+              </button>
+            </div>
+          </nav>
+        )}
       </div>
     </div>
   );

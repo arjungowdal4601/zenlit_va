@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { RadarUserCard } from '../components/radar/RadarUserCard';
 import { LocationPermissionModal } from '../components/radar/LocationPermissionModal';
 import { User, UserLocation, LocationPermissionStatus } from '../types';
-import { MapPinIcon, ExclamationTriangleIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
+import { MapPinIcon, ExclamationTriangleIcon, ArrowPathIcon, EyeSlashIcon, EyeIcon } from '@heroicons/react/24/outline';
 import { supabase } from '../lib/supabase';
 import { transformProfileToUser } from '../../lib/utils';
 import { 
@@ -15,7 +15,8 @@ import {
   stopWatchingLocation,
   hasLocationChanged,
   saveUserLocation,
-  createDebouncedLocationUpdate
+  createDebouncedLocationUpdate,
+  updateRadarVisibility
 } from '../lib/location';
 
 interface Props {
@@ -48,6 +49,7 @@ export const RadarScreen: React.FC<Props> = ({
   const [isUpdatingUsers, setIsUpdatingUsers] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [hideFromRadar, setHideFromRadar] = useState(false); // New state for radar visibility toggle
 
   // Refs for cleanup
   const locationWatchId = useRef<number | null>(null);
@@ -101,10 +103,12 @@ export const RadarScreen: React.FC<Props> = ({
         name: profile.name,
         hasLocation: !!(profile.latitude && profile.longitude),
         latitude: profile.latitude,
-        longitude: profile.longitude
+        longitude: profile.longitude,
+        hide_from_radar: profile.hide_from_radar
       });
 
       setCurrentUser(profile);
+      setHideFromRadar(profile.hide_from_radar || false); // Set initial radar visibility state
 
       // Check if user already has location data
       if (profile.latitude && profile.longitude) {
@@ -329,6 +333,32 @@ export const RadarScreen: React.FC<Props> = ({
     setShowLocationModal(true);
   };
 
+  // Handle radar visibility toggle
+  const handleRadarVisibilityToggle = async () => {
+    if (!currentUser) return;
+
+    const newVisibility = !hideFromRadar;
+    setHideFromRadar(newVisibility);
+
+    try {
+      const result = await updateRadarVisibility(currentUser.id, newVisibility);
+      
+      if (!result.success) {
+        // Revert the toggle if update failed
+        setHideFromRadar(!newVisibility);
+        console.error('Failed to update radar visibility:', result.error);
+        alert('Failed to update visibility setting. Please try again.');
+      } else {
+        console.log('Radar visibility updated successfully');
+      }
+    } catch (error) {
+      // Revert the toggle if update failed
+      setHideFromRadar(!newVisibility);
+      console.error('Error updating radar visibility:', error);
+      alert('Failed to update visibility setting. Please try again.');
+    }
+  };
+
   // Pull to refresh handler
   const handleRefresh = async () => {
     if (isRefreshing || !currentUser || !currentLocation) return;
@@ -507,6 +537,42 @@ export const RadarScreen: React.FC<Props> = ({
         </div>
       </div>
 
+      {/* Radar Visibility Toggle */}
+      <div className="px-4 py-3 bg-gray-900/50 border-b border-gray-800">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            {hideFromRadar ? (
+              <EyeSlashIcon className="w-5 h-5 text-orange-500" />
+            ) : (
+              <EyeIcon className="w-5 h-5 text-green-500" />
+            )}
+            <div>
+              <span className="text-sm font-medium text-white">
+                {hideFromRadar ? 'Hidden from nearby users' : 'Visible to nearby users'}
+              </span>
+              <p className="text-xs text-gray-400">
+                {hideFromRadar 
+                  ? 'Others cannot see you on their radar' 
+                  : 'Others can see you when you\'re nearby'
+                }
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={handleRadarVisibilityToggle}
+            className={`relative w-12 h-6 rounded-full transition-colors ${
+              hideFromRadar ? 'bg-orange-600' : 'bg-green-600'
+            }`}
+          >
+            <div
+              className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${
+                hideFromRadar ? 'translate-x-1' : 'translate-x-7'
+              }`}
+            />
+          </button>
+        </div>
+      </div>
+
       {/* Location Status Info */}
       {!currentLocation && (
         <div className="px-4 py-3 bg-blue-900/20 border-b border-blue-700/30">
@@ -609,7 +675,7 @@ export const RadarScreen: React.FC<Props> = ({
           )
         ) : (
           <div className="text-center py-12">
-            <p className="text-gray-400">Toggle &quot;Show Nearby&quot; to see people around you</p>
+            <p className="text-gray-400">Toggle "Show Nearby" to see people around you</p>
           </div>
         )}
       </div>

@@ -4,142 +4,189 @@ import { ChatWindow } from '../components/messaging/ChatWindow';
 import { User, Message } from '../types';
 import { supabase } from '../lib/supabase';
 import { MagnifyingGlassIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { 
+  getUserConversations, 
+  getOrCreateConversation, 
+  getConversationMessages, 
+  sendMessage, 
+  subscribeToMessages, 
+  subscribeToConversations,
+  type Conversation,
+  type MessageWithSender
+} from '../lib/messaging';
 
 interface Props {
   selectedUser?: (User & { isNearby?: boolean }) | null;
   onClearSelectedUser?: () => void;
   onViewProfile?: (user: User) => void;
+  onHideBottomNav?: (hide: boolean) => void;
 }
 
 export const MessagesScreen: React.FC<Props> = ({ 
   selectedUser: initialSelectedUser, 
   onClearSelectedUser,
-  onViewProfile
+  onViewProfile,
+  onHideBottomNav
 }) => {
   const [currentUserId, setCurrentUserId] = useState<string>('');
-  const [allUsers, setAllUsers] = useState<User[]>([]);
-  const [selectedUser, setSelectedUser] = useState<(User & { isNearby?: boolean }) | undefined>(initialSelectedUser || undefined);
-  const [allMessages, setAllMessages] = useState<Message[]>([]);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
+  const [messages, setMessages] = useState<MessageWithSender[]>([]);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isMobile] = useState(window.innerWidth < 768);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
 
   useEffect(() => {
-    loadUsersAndMessages();
+    loadCurrentUser();
   }, []);
 
   useEffect(() => {
-    if (initialSelectedUser) {
-      setSelectedUser(initialSelectedUser);
+    if (initialSelectedUser && currentUserId) {
+      handleSelectUserForChat(initialSelectedUser);
     }
-  }, [initialSelectedUser]);
+  }, [initialSelectedUser, currentUserId]);
 
-  const loadUsersAndMessages = async () => {
+  // Handle bottom nav visibility
+  useEffect(() => {
+    if (onHideBottomNav) {
+      onHideBottomNav(!!selectedConversation);
+    }
+  }, [selectedConversation, onHideBottomNav]);
+
+  const loadCurrentUser = async () => {
     try {
       const { data: { user: currentUser } } = await supabase.auth.getUser();
       
       if (!currentUser) return;
 
       setCurrentUserId(currentUser.id);
-
-      // Get users who have completed their profiles for messaging
-      const { data: profiles, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .neq('id', currentUser.id) // Exclude current user
-        .not('name', 'is', null)
-        .not('bio', 'is', null)
-        .limit(50);
-
-      if (error) {
-        console.error('Error loading users:', error);
-        return;
-      }
-
-      // Transform database profiles to User type - use local default instead of stock image
-      const transformedUsers: User[] = (profiles || []).map(profile => ({
-        id: profile.id,
-        name: profile.name,
-        username: profile.username,
-        dpUrl: profile.profile_photo_url || '/images/default-avatar.png',
-        bio: profile.bio,
-        gender: profile.gender,
-        age: profile.date_of_birth ? 
-          new Date().getFullYear() - new Date(profile.date_of_birth).getFullYear() : 25,
-        distance: Math.floor(Math.random() * 50) + 1,
-        links: {
-          Twitter: profile.twitter_url || '#',
-          Instagram: profile.instagram_url || '#',
-          LinkedIn: profile.linked_in_url || '#',
-        },
-        instagramUrl: profile.instagram_url,
-        linkedInUrl: profile.linked_in_url,
-        twitterUrl: profile.twitter_url,
-      }));
-
-      setAllUsers(transformedUsers);
+      await loadConversations(currentUser.id);
       
-      // Load real messages from database (when messaging system is implemented)
-      // For now, start with empty messages array - no more dummy data
-      setAllMessages([]);
+      // Subscribe to conversation updates
+      const conversationSub = subscribeToConversations(
+        currentUser.id,
+        (updatedConversation) => {
+          setConversations(prev => {
+            const index = prev.findIndex(c => c.id === updatedConversation.id);
+            if (index >= 0) {
+              const updated = [...prev];
+              updated[index] = updatedConversation;
+              return updated.sort((a, b) => 
+                new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime()
+              );
+            } else {
+              return [updatedConversation, ...prev];
+            }
+          });
+        },
+        (error) => {
+          console.error('Conversation subscription error:', error);
+        }
+      );
+
+      return () => {
+        conversationSub.unsubscribe();
+      };
     } catch (error) {
-      console.error('Error loading users and messages:', error);
+      console.error('Error loading current user:', error);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Filter users based on search query
-  const filteredUsers = useMemo(() => {
-    if (!searchQuery.trim()) {
-      return allUsers;
-    }
-
-    const query = searchQuery.toLowerCase().trim();
-    return allUsers.filter(user => {
-      const nameMatch = user.name.toLowerCase().includes(query);
-      const usernameMatch = user.username?.toLowerCase().includes(query);
-      const usernameWithoutAt = query.startsWith('@') ? query.slice(1) : query;
-      const usernameExactMatch = user.username?.toLowerCase().includes(usernameWithoutAt);
+  const loadConversations = async (userId: string) => {
+    try {
+      const result = await getUserConversations(userId);
       
-      return nameMatch || usernameMatch || usernameExactMatch;
-    });
-  }, [allUsers, searchQuery]);
-
-  const getMessagesForUser = (userId: string): Message[] => {
-    return allMessages.filter(msg => 
-      msg.senderId === userId || msg.receiverId === userId
-    );
+      if (result.success && result.conversations) {
+        setConversations(result.conversations);
+      } else {
+        console.error('Failed to load conversations:', result.error);
+      }
+    } catch (error) {
+      console.error('Error loading conversations:', error);
+    }
   };
 
-  const handleSendMessage = (content: string) => {
-    if (!selectedUser) return;
+  const handleSelectUserForChat = async (user: User & { isNearby?: boolean }) => {
+    if (!currentUserId) return;
 
-    const newMessage: Message = {
-      id: Date.now().toString(),
-      senderId: currentUserId,
-      receiverId: selectedUser.id,
-      content,
-      timestamp: new Date().toISOString(),
-      read: false
-    };
+    try {
+      // Get or create conversation
+      const result = await getOrCreateConversation(currentUserId, user.id);
+      
+      if (result.success && result.conversation) {
+        setSelectedConversation(result.conversation);
+        await loadMessages(result.conversation.id);
+      } else {
+        console.error('Failed to create conversation:', result.error);
+      }
+    } catch (error) {
+      console.error('Error selecting user for chat:', error);
+    }
+  };
 
-    // Add to local state immediately for UI responsiveness
-    setAllMessages(prev => [...prev, newMessage]);
+  const handleSelectConversation = async (conversation: Conversation) => {
+    setSelectedConversation(conversation);
+    await loadMessages(conversation.id);
+  };
+
+  const loadMessages = async (conversationId: string) => {
+    setIsLoadingMessages(true);
     
-    // TODO: Save to database when messaging system is implemented
-    // await supabase.from('messages').insert(newMessage);
+    try {
+      const result = await getConversationMessages(conversationId);
+      
+      if (result.success && result.messages) {
+        setMessages(result.messages);
+        
+        // Subscribe to new messages
+        const messagesSub = subscribeToMessages(
+          conversationId,
+          (newMessage) => {
+            setMessages(prev => [...prev, newMessage]);
+          },
+          (error) => {
+            console.error('Messages subscription error:', error);
+          }
+        );
+
+        return () => {
+          messagesSub.unsubscribe();
+        };
+      } else {
+        console.error('Failed to load messages:', result.error);
+      }
+    } catch (error) {
+      console.error('Error loading messages:', error);
+    } finally {
+      setIsLoadingMessages(false);
+    }
   };
 
-  const handleSelectUser = (user: User & { isNearby: boolean }) => {
-    setSelectedUser(user);
-    if (onClearSelectedUser) {
-      onClearSelectedUser();
+  const handleSendMessage = async (content: string) => {
+    if (!selectedConversation || !currentUserId) return;
+
+    try {
+      const result = await sendMessage(selectedConversation.id, currentUserId, content);
+      
+      if (result.success && result.message) {
+        // Message will be added via subscription
+        console.log('Message sent successfully');
+      } else {
+        console.error('Failed to send message:', result.error);
+        alert('Failed to send message. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error sending message:', error);
+      alert('Failed to send message. Please try again.');
     }
   };
 
   const handleBackToList = () => {
-    setSelectedUser(undefined);
+    setSelectedConversation(null);
+    setMessages([]);
     if (onClearSelectedUser) {
       onClearSelectedUser();
     }
@@ -149,7 +196,25 @@ export const MessagesScreen: React.FC<Props> = ({
     setSearchQuery('');
   };
 
-  const selectedUserMessages = selectedUser ? getMessagesForUser(selectedUser.id) : [];
+  // Filter conversations based on search query
+  const filteredConversations = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return conversations;
+    }
+
+    const query = searchQuery.toLowerCase().trim();
+    return conversations.filter(conversation => {
+      const otherParticipant = conversation.other_participant;
+      if (!otherParticipant) return false;
+      
+      const nameMatch = otherParticipant.name.toLowerCase().includes(query);
+      const usernameMatch = otherParticipant.username?.toLowerCase().includes(query);
+      const usernameWithoutAt = query.startsWith('@') ? query.slice(1) : query;
+      const usernameExactMatch = otherParticipant.username?.toLowerCase().includes(usernameWithoutAt);
+      
+      return nameMatch || usernameMatch || usernameExactMatch;
+    });
+  }, [conversations, searchQuery]);
 
   if (isLoading) {
     return (
@@ -167,7 +232,7 @@ export const MessagesScreen: React.FC<Props> = ({
       {/* Mobile: Show either chat list or chat window */}
       {isMobile ? (
         <>
-          {!selectedUser ? (
+          {!selectedConversation ? (
             <div className="w-full flex flex-col">
               {/* Header with Search */}
               <div className="px-4 py-3 bg-black border-b border-gray-800 flex-shrink-0">
@@ -183,7 +248,7 @@ export const MessagesScreen: React.FC<Props> = ({
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="w-full pl-10 pr-10 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Search by name or @username"
+                    placeholder="Search conversations..."
                   />
                   {searchQuery && (
                     <button
@@ -198,21 +263,20 @@ export const MessagesScreen: React.FC<Props> = ({
                 {/* Search Results Count */}
                 {searchQuery && (
                   <p className="text-sm text-gray-400 mt-2">
-                    {filteredUsers.length === 0 
-                      ? 'No users found' 
-                      : `${filteredUsers.length} user${filteredUsers.length !== 1 ? 's' : ''} found`
+                    {filteredConversations.length === 0 
+                      ? 'No conversations found' 
+                      : `${filteredConversations.length} conversation${filteredConversations.length !== 1 ? 's' : ''} found`
                     }
                   </p>
                 )}
               </div>
               
-              {/* Chat List */}
+              {/* Conversations List */}
               <div className="flex-1 overflow-hidden">
                 <ChatList
-                  users={filteredUsers}
-                  messages={allMessages}
-                  selectedUser={selectedUser}
-                  onSelectUser={handleSelectUser}
+                  conversations={filteredConversations}
+                  selectedConversation={selectedConversation}
+                  onSelectConversation={handleSelectConversation}
                   searchQuery={searchQuery}
                 />
               </div>
@@ -220,12 +284,13 @@ export const MessagesScreen: React.FC<Props> = ({
           ) : (
             <div className="w-full">
               <ChatWindow
-                user={selectedUser}
-                messages={selectedUserMessages}
+                conversation={selectedConversation}
+                messages={messages}
                 onSendMessage={handleSendMessage}
                 currentUserId={currentUserId}
                 onBack={handleBackToList}
                 onViewProfile={onViewProfile}
+                isLoading={isLoadingMessages}
               />
             </div>
           )}
@@ -248,7 +313,7 @@ export const MessagesScreen: React.FC<Props> = ({
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full pl-10 pr-10 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Search by name or @username"
+                  placeholder="Search conversations..."
                 />
                 {searchQuery && (
                   <button
@@ -263,35 +328,35 @@ export const MessagesScreen: React.FC<Props> = ({
               {/* Search Results Count */}
               {searchQuery && (
                 <p className="text-sm text-gray-400 mt-2">
-                  {filteredUsers.length === 0 
-                    ? 'No users found' 
-                    : `${filteredUsers.length} user${filteredUsers.length !== 1 ? 's' : ''} found`
+                  {filteredConversations.length === 0 
+                    ? 'No conversations found' 
+                    : `${filteredConversations.length} conversation${filteredConversations.length !== 1 ? 's' : ''} found`
                   }
                 </p>
               )}
             </div>
             
-            {/* Chat List */}
+            {/* Conversations List */}
             <div className="flex-1 overflow-hidden">
               <ChatList
-                users={filteredUsers}
-                messages={allMessages}
-                selectedUser={selectedUser}
-                onSelectUser={handleSelectUser}
+                conversations={filteredConversations}
+                selectedConversation={selectedConversation}
+                onSelectConversation={handleSelectConversation}
                 searchQuery={searchQuery}
               />
             </div>
           </div>
           
           <div className="flex-1">
-            {selectedUser ? (
+            {selectedConversation ? (
               <ChatWindow
-                user={selectedUser}
-                messages={selectedUserMessages}
+                conversation={selectedConversation}
+                messages={messages}
                 onSendMessage={handleSendMessage}
                 currentUserId={currentUserId}
                 onBack={isMobile ? handleBackToList : undefined}
                 onViewProfile={onViewProfile}
+                isLoading={isLoadingMessages}
               />
             ) : (
               <div className="flex items-center justify-center h-full">

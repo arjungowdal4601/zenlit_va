@@ -1,28 +1,31 @@
 import { useState, useEffect, useRef } from 'react';
-import { Message, User } from '../../types';
+import { User } from '../../types';
 import { MessageBubble } from './MessageBubble';
 import { MessageInput } from './MessageInput';
 import { ChevronLeftIcon } from '@heroicons/react/24/outline';
+import { type Conversation, type MessageWithSender } from '../../lib/messaging';
 
 interface ChatWindowProps {
-  user: User & { isNearby?: boolean };
-  messages: Message[];
+  conversation: Conversation;
+  messages: MessageWithSender[];
   onSendMessage: (content: string) => void;
   currentUserId: string;
   onBack?: () => void;
   onViewProfile?: (user: User) => void;
+  isLoading?: boolean;
 }
 
 export const ChatWindow = ({
-  user,
+  conversation,
   messages,
   onSendMessage,
   currentUserId,
   onBack,
-  onViewProfile
+  onViewProfile,
+  isLoading = false
 }: ChatWindowProps) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const isNearby = user.isNearby !== false;
+  const otherParticipant = conversation.other_participant;
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -33,10 +36,33 @@ export const ChatWindow = ({
   }, [messages]);
 
   const handleProfileClick = () => {
-    if (onViewProfile && isNearby) {
+    if (onViewProfile && otherParticipant) {
+      const user: User = {
+        id: otherParticipant.id,
+        name: otherParticipant.name,
+        username: otherParticipant.username,
+        dpUrl: otherParticipant.profile_photo_url || '/images/default-avatar.png',
+        bio: '', // We don't have bio in conversation data
+        gender: 'male', // Default value
+        age: 25, // Default value
+        distance: 0,
+        links: {
+          Twitter: '#',
+          Instagram: '#',
+          LinkedIn: '#'
+        }
+      };
       onViewProfile(user);
     }
   };
+
+  if (!otherParticipant) {
+    return (
+      <div className="h-full flex items-center justify-center bg-black">
+        <p className="text-gray-400">Unable to load conversation</p>
+      </div>
+    );
+  }
 
   return (
     <div className="h-full flex flex-col bg-black">
@@ -54,23 +80,18 @@ export const ChatWindow = ({
           
           {/* Clickable profile area */}
           <button
-            onClick={isNearby ? handleProfileClick : undefined}
-            disabled={!isNearby}
-            className={`flex items-center flex-1 rounded-lg p-2 -m-2 ${
-              isNearby ? 'hover:bg-gray-800/50 transition-colors active:scale-95' : ''
-            }`}
+            onClick={handleProfileClick}
+            className="flex items-center flex-1 rounded-lg p-2 -m-2 hover:bg-gray-800/50 transition-colors active:scale-95"
           >
             <img
-              src={isNearby ? user.dpUrl : '/images/default-avatar.png'}
-              alt={isNearby ? user.name : 'Anonymous'}
-              className={`w-9 h-9 rounded-full object-cover mr-3 ${
-                isNearby ? 'ring-2 ring-blue-500' : 'bg-gray-700'
-              }`}
+              src={otherParticipant.profile_photo_url || '/images/default-avatar.png'}
+              alt={otherParticipant.name}
+              className="w-9 h-9 rounded-full object-cover mr-3 ring-2 ring-blue-500"
             />
             <div className="text-left">
-              <h3 className="font-semibold text-white">{isNearby ? user.name : 'Anonymous'}</h3>
-              {isNearby && (
-                <p className="text-xs text-gray-400">Active now</p>
+              <h3 className="font-semibold text-white">{otherParticipant.name}</h3>
+              {otherParticipant.username && (
+                <p className="text-xs text-gray-400">@{otherParticipant.username}</p>
               )}
             </div>
           </button>
@@ -79,15 +100,22 @@ export const ChatWindow = ({
 
       {/* Messages Container */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.length === 0 ? (
+        {isLoading ? (
+          <div className="flex items-center justify-center h-full">
+            <div className="text-center">
+              <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+              <p className="text-gray-400 text-sm">Loading messages...</p>
+            </div>
+          </div>
+        ) : messages.length === 0 ? (
           <div className="flex items-center justify-center h-full">
             <div className="text-center">
               <img
-                src={isNearby ? user.dpUrl : '/images/default-avatar.png'}
-                alt={isNearby ? user.name : 'Anonymous'}
+                src={otherParticipant.profile_photo_url || '/images/default-avatar.png'}
+                alt={otherParticipant.name}
                 className="w-16 h-16 rounded-full mx-auto mb-4"
               />
-              <p className="text-gray-400">Start a conversation with {isNearby ? user.name : 'Anonymous'}</p>
+              <p className="text-gray-400">Start a conversation with {otherParticipant.name}</p>
             </div>
           </div>
         ) : (

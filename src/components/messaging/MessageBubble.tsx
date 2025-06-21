@@ -1,8 +1,8 @@
-import { Message } from '../../types';
 import { format } from 'date-fns';
+import { type MessageWithSender } from '../../lib/messaging';
 
 interface MessageBubbleProps {
-  message: Message;
+  message: MessageWithSender;
   isCurrentUser: boolean;
 }
 
