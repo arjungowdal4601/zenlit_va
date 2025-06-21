@@ -30,38 +30,6 @@ export const sendSignupOTP = async (email: string): Promise<AuthResult> => {
       };
     }
 
-    // First check if user already exists by trying to sign in with a dummy password
-    // This is a safer way to check if an account exists
-    const { data: existingUser, error: checkError } = await supabase.auth.signInWithPassword({
-      email,
-      password: 'dummy_password_check_' + Math.random()
-    });
-
-    // If we get a specific "Invalid login credentials" error, the user doesn't exist
-    // If we get any other error or success, the user might exist
-    if (checkError && !checkError.message.includes('Invalid login credentials')) {
-      // User exists or there's another issue
-      if (checkError.message.includes('Email not confirmed')) {
-        return {
-          success: false,
-          error: 'An account with this email exists but is not verified. Please check your email for verification.'
-        };
-      } else if (checkError.message.includes('too many requests')) {
-        return {
-          success: false,
-          error: 'Too many attempts. Please wait a moment before trying again.'
-        };
-      } else {
-        return {
-          success: false,
-          error: 'An account with this email already exists. Please sign in below.'
-        };
-      }
-    }
-
-    // If we got "Invalid login credentials", the user doesn't exist, so we can proceed with signup
-    console.log('Email is available for signup, proceeding...');
-
     // Use Supabase's signUp method with email confirmation
     const { data, error } = await supabase.auth.signUp({
       email,
