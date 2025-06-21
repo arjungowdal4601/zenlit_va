@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { EyeIcon, EyeSlashIcon, CheckCircleIcon, ArrowLeftIcon } from '@heroicons/react/24/outline';
 import { PasswordResetScreen } from './PasswordResetScreen';
-import { sendSignupOTP, verifySignupOTP, setUserPassword, signInWithPassword } from '../lib/auth';
+import { sendSignupOTP, verifySignupOTP, setUserPassword, signInWithPassword, checkEmailExists } from '../lib/auth';
 
 interface Props {
   onLogin: () => void;
@@ -88,7 +88,7 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
     }
   };
 
-  // SIGNUP STEP 1: Send OTP to email
+  // SIGNUP STEP 1: Check email and send OTP
   const handleSendOTP = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -107,22 +107,39 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
     setIsLoading(true);
 
     try {
-      console.log('Sending OTP for signup to:', formData.email);
+      console.log('🔍 Checking if email exists before signup:', formData.email);
+      
+      // First check if email already exists
+      const emailCheck = await checkEmailExists(formData.email);
+      
+      if (emailCheck.error) {
+        setError('Unable to verify email. Please try again.');
+        setIsLoading(false);
+        return;
+      }
+
+      if (emailCheck.exists) {
+        console.log('🔍 Email exists, redirecting to login');
+        setCurrentView('login');
+        setError('An account with this email already exists. Please sign in below.');
+        setIsLoading(false);
+        return;
+      }
+
+      console.log('🔍 Email is new, proceeding with signup');
+      
+      // Email doesn't exist, proceed with signup
       const result = await sendSignupOTP(formData.email);
       
       if (result.success) {
-        console.log('OTP sent successfully');
+        console.log('OTP sent successfully for new account');
         setSignupStep('otp');
         setOtpCountdown(60); // Start 60 second countdown
       } else {
         console.error('OTP send failed:', result.error);
+        
         // Check if the error indicates an existing account
-        if (
-          result.error &&
-          (result.error.includes('already exists') ||
-            result.error.includes('Database error saving new user'))
-        ) {
-          // Switch to login view and pre-fill email
+        if (result.error && result.error.includes('already exists')) {
           setCurrentView('login');
           setError('An account with this email already exists. Please sign in below.');
         } else {
@@ -130,7 +147,7 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
         }
       }
     } catch (error) {
-      console.error('OTP send error:', error);
+      console.error('Signup initiation error:', error);
       setError('Network error. Please try again.');
     } finally {
       setIsLoading(false);
@@ -455,7 +472,7 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
                       {isLoading ? (
                         <>
                           <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                          Sending Code...
+                          Checking Email...
                         </>
                       ) : (
                         'Send Verification Code'
