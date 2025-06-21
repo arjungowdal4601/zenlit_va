@@ -552,17 +552,6 @@ export const RadarScreen: React.FC<Props> = ({
         </div>
       )}
 
-      {isLocationTracking && (
-        <div className="px-4 py-2 bg-green-900/20 border-b border-green-700/30">
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-            <span className="text-xs text-green-400">
-              Live tracking active - finding people as you move
-            </span>
-          </div>
-        </div>
-      )}
-
       {/* Pull to refresh indicator */}
       {isPulling && pullDistance > 0 && (
         <div className="flex justify-center py-2 bg-gray-900/50">

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { User } from '../../types';
 import { IconBrandInstagram, IconBrandLinkedin, IconBrandX } from '@tabler/icons-react';
-import { ChatBubbleLeftIcon, UserIcon, MapPinIcon } from '@heroicons/react/24/outline';
+import { ChatBubbleLeftIcon, UserIcon } from '@heroicons/react/24/outline';
 import { UserProfileModal } from './UserProfileModal';
 
 interface Props {
@@ -83,16 +83,6 @@ export const RadarUserCard: React.FC<Props> = ({ user, onMessage, onViewProfile 
                   </button>
                 )}
               </div>
-            </div>
-          </div>
-
-          {/* Proximity-based insights */}
-          <div className="bg-green-900/20 border border-green-700/30 rounded-lg p-3 mb-4">
-            <div className="flex items-center gap-2">
-              <MapPinIcon className="w-4 h-4 text-green-400" />
-              <span className="text-sm text-green-300">
-                In your immediate vicinity!
-              </span>
             </div>
           </div>
 
