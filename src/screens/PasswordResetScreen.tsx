@@ -188,7 +188,7 @@ export const PasswordResetScreen: React.FC<Props> = ({ onBack }) => {
 
         console.log('✅ Password updated successfully via recovery flow');
         
-        // Sign out the user after password reset
+        // Sign out the user after password reset to force them to login again
         await supabase.auth.signOut();
         
         setStep('success');
