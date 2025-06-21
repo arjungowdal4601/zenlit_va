@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { ChatList } from '../components/messaging/ChatList';
 import { ChatWindow } from '../components/messaging/ChatWindow';
 import { User, Message } from '../types';
@@ -37,6 +37,10 @@ export const MessagesScreen: React.FC<Props> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
 
+  // Use refs to store subscription instances
+  const conversationSubscriptionRef = useRef<any>(null);
+  const messageSubscriptionRef = useRef<any>(null);
+
   useEffect(() => {
     loadCurrentUser();
   }, []);
@@ -54,6 +58,113 @@ export const MessagesScreen: React.FC<Props> = ({
     }
   }, [selectedConversation, onHideBottomNav]);
 
+  // Separate useEffect for conversation subscriptions
+  useEffect(() => {
+    if (!currentUserId) return;
+
+    const setupConversationSubscription = async () => {
+      try {
+        await loadConversations(currentUserId);
+        
+        // Clean up any existing subscription
+        if (conversationSubscriptionRef.current) {
+          conversationSubscriptionRef.current.unsubscribe();
+        }
+        
+        // Subscribe to conversation updates
+        conversationSubscriptionRef.current = subscribeToConversations(
+          currentUserId,
+          (updatedConversation) => {
+            setConversations(prev => {
+              const index = prev.findIndex(c => c.id === updatedConversation.id);
+              if (index >= 0) {
+                const updated = [...prev];
+                updated[index] = updatedConversation;
+                return updated.sort((a, b) => 
+                  new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime()
+                );
+              } else {
+                return [updatedConversation, ...prev];
+              }
+            });
+          },
+          (error) => {
+            console.error('Conversation subscription error:', error);
+          }
+        );
+      } catch (error) {
+        console.error('Error setting up conversation subscription:', error);
+      }
+    };
+
+    setupConversationSubscription();
+
+    // Cleanup function
+    return () => {
+      if (conversationSubscriptionRef.current) {
+        conversationSubscriptionRef.current.unsubscribe();
+        conversationSubscriptionRef.current = null;
+      }
+    };
+  }, [currentUserId]);
+
+  // Separate useEffect for message subscriptions
+  useEffect(() => {
+    if (!selectedConversation) {
+      // Clean up message subscription when no conversation is selected
+      if (messageSubscriptionRef.current) {
+        messageSubscriptionRef.current.unsubscribe();
+        messageSubscriptionRef.current = null;
+      }
+      setMessages([]);
+      return;
+    }
+
+    const setupMessageSubscription = async () => {
+      setIsLoadingMessages(true);
+      
+      try {
+        // Clean up any existing message subscription
+        if (messageSubscriptionRef.current) {
+          messageSubscriptionRef.current.unsubscribe();
+        }
+
+        const result = await getConversationMessages(selectedConversation.id);
+        
+        if (result.success && result.messages) {
+          setMessages(result.messages);
+          
+          // Subscribe to new messages
+          messageSubscriptionRef.current = subscribeToMessages(
+            selectedConversation.id,
+            (newMessage) => {
+              setMessages(prev => [...prev, newMessage]);
+            },
+            (error) => {
+              console.error('Messages subscription error:', error);
+            }
+          );
+        } else {
+          console.error('Failed to load messages:', result.error);
+        }
+      } catch (error) {
+        console.error('Error setting up message subscription:', error);
+      } finally {
+        setIsLoadingMessages(false);
+      }
+    };
+
+    setupMessageSubscription();
+
+    // Cleanup function
+    return () => {
+      if (messageSubscriptionRef.current) {
+        messageSubscriptionRef.current.unsubscribe();
+        messageSubscriptionRef.current = null;
+      }
+    };
+  }, [selectedConversation]);
+
   const loadCurrentUser = async () => {
     try {
       const { data: { user: currentUser } } = await supabase.auth.getUser();
@@ -61,33 +172,6 @@ export const MessagesScreen: React.FC<Props> = ({
       if (!currentUser) return;
 
       setCurrentUserId(currentUser.id);
-      await loadConversations(currentUser.id);
-      
-      // Subscribe to conversation updates
-      const conversationSub = subscribeToConversations(
-        currentUser.id,
-        (updatedConversation) => {
-          setConversations(prev => {
-            const index = prev.findIndex(c => c.id === updatedConversation.id);
-            if (index >= 0) {
-              const updated = [...prev];
-              updated[index] = updatedConversation;
-              return updated.sort((a, b) => 
-                new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime()
-              );
-            } else {
-              return [updatedConversation, ...prev];
-            }
-          });
-        },
-        (error) => {
-          console.error('Conversation subscription error:', error);
-        }
-      );
-
-      return () => {
-        conversationSub.unsubscribe();
-      };
     } catch (error) {
       console.error('Error loading current user:', error);
     } finally {
@@ -118,7 +202,6 @@ export const MessagesScreen: React.FC<Props> = ({
       
       if (result.success && result.conversation) {
         setSelectedConversation(result.conversation);
-        await loadMessages(result.conversation.id);
       } else {
         console.error('Failed to create conversation:', result.error);
       }
@@ -129,40 +212,6 @@ export const MessagesScreen: React.FC<Props> = ({
 
   const handleSelectConversation = async (conversation: Conversation) => {
     setSelectedConversation(conversation);
-    await loadMessages(conversation.id);
-  };
-
-  const loadMessages = async (conversationId: string) => {
-    setIsLoadingMessages(true);
-    
-    try {
-      const result = await getConversationMessages(conversationId);
-      
-      if (result.success && result.messages) {
-        setMessages(result.messages);
-        
-        // Subscribe to new messages
-        const messagesSub = subscribeToMessages(
-          conversationId,
-          (newMessage) => {
-            setMessages(prev => [...prev, newMessage]);
-          },
-          (error) => {
-            console.error('Messages subscription error:', error);
-          }
-        );
-
-        return () => {
-          messagesSub.unsubscribe();
-        };
-      } else {
-        console.error('Failed to load messages:', result.error);
-      }
-    } catch (error) {
-      console.error('Error loading messages:', error);
-    } finally {
-      setIsLoadingMessages(false);
-    }
   };
 
   const handleSendMessage = async (content: string) => {
@@ -186,7 +235,6 @@ export const MessagesScreen: React.FC<Props> = ({
 
   const handleBackToList = () => {
     setSelectedConversation(null);
-    setMessages([]);
     if (onClearSelectedUser) {
       onClearSelectedUser();
     }
