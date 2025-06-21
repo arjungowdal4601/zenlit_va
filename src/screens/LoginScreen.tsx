@@ -274,11 +274,14 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
   };
 
   const handleForgotPassword = () => {
+    console.log('🔍 Switching to password reset view');
     setCurrentView('passwordReset');
   };
 
   const handleBackFromPasswordReset = () => {
+    console.log('🔍 Returning from password reset to login');
     setCurrentView('login');
+    setError(null);
   };
 
   const handleBackButton = () => {
