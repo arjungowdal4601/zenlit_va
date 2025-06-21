@@ -373,10 +373,17 @@ export const subscribeToMessages = (
     )
     .subscribe((status) => {
       console.log('Message subscription status:', status);
-      if (status === REALTIME_SUBSCRIBE_STATES.SUBSCRIPTION_ERROR) {
-        onError('Failed to subscribe to messages');
+      // Use proper error handling instead of invalid SUBSCRIPTION_ERROR check
+      if (status === REALTIME_SUBSCRIBE_STATES.CLOSED) {
+        onError('Message subscription was closed');
       }
     });
+
+  // Add error handler for the channel
+  subscription.on('error', (error) => {
+    console.error('Message subscription error:', error);
+    onError('Failed to subscribe to messages');
+  });
 
   return subscription;
 };
@@ -438,10 +445,17 @@ export const subscribeToConversations = (
     )
     .subscribe((status) => {
       console.log('Conversation subscription status:', status);
-      if (status === REALTIME_SUBSCRIBE_STATES.SUBSCRIPTION_ERROR) {
-        onError('Failed to subscribe to conversations');
+      // Use proper error handling instead of invalid SUBSCRIPTION_ERROR check
+      if (status === REALTIME_SUBSCRIBE_STATES.CLOSED) {
+        onError('Conversation subscription was closed');
       }
     });
+
+  // Add error handler for the channel
+  subscription.on('error', (error) => {
+    console.error('Conversation subscription error:', error);
+    onError('Failed to subscribe to conversations');
+  });
 
   return subscription;
 };
