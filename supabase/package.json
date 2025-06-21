@@ -11,9 +11,5 @@
   },
   "devDependencies": {
     "concurrently": "^9.1.2"
-  },
-  "dependencies": {
-    "@radix-ui/react-slot": "^1.2.3",
-    "tailwindcss-animate": "^1.0.7"
   }
 }
