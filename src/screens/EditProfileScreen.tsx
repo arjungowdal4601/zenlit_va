@@ -166,8 +166,8 @@ export const EditProfileScreen: React.FC<Props> = ({ user, onBack, onSave }) => 
     
     setLoading(true);
     try {
-      let newProfileUrl = profileUrl;
-      let newCoverUrl = coverUrl;
+      let newProfileUrl: string | null = profileUrl;
+      let newCoverUrl: string | null = coverUrl;
 
       // Handle profile photo deletion when clearing existing image
       if (!profileUrl && user.dpUrl && !user.dpUrl.includes('/images/default-')) {
@@ -253,8 +253,8 @@ export const EditProfileScreen: React.FC<Props> = ({ user, onBack, onSave }) => 
       const updateData = {
         name: formData.name,
         bio: formData.bio,
-        profile_photo_url: newProfileUrl || null,
-        cover_photo_url: newCoverUrl || null,
+        profile_photo_url: newProfileUrl,
+        cover_photo_url: newCoverUrl,
         instagram_url: formData.instagramUrl || null,
         linked_in_url: formData.linkedInUrl || null,
         twitter_url: formData.twitterUrl || null,
