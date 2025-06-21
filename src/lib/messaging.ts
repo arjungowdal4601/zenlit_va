@@ -26,6 +26,17 @@ type LatestMessageQueryResult = {
   sender_id: string;
 };
 
+// Type definitions for realtime payload
+interface MessagePayload {
+  new: Database['public']['Tables']['messages']['Row'];
+  old?: Database['public']['Tables']['messages']['Row'];
+}
+
+interface ConversationPayload {
+  new: Database['public']['Tables']['conversations']['Row'];
+  old?: Database['public']['Tables']['conversations']['Row'];
+}
+
 export interface Conversation {
   id: string;
   participant_1_id: string;
@@ -437,8 +448,15 @@ export const subscribeToMessages = (
         table: 'messages',
         filter: `conversation_id=eq.${conversationId}`
       },
-      async (payload) => {
+      async (payload: MessagePayload) => {
         console.log('🔍 [subscribeToMessages] New message received:', payload);
+
+        // Now we can safely access payload.new.id with proper typing
+        if (!payload.new?.id) {
+          console.error('🔍 [subscribeToMessages] Invalid payload - missing message ID');
+          onError('Invalid message payload received');
+          return;
+        }
 
         // Fetch the complete message with sender info using explicit type assertion
         const { data: message, error } = await supabase
@@ -502,8 +520,15 @@ export const subscribeToConversations = (
         table: 'conversations',
         filter: `or(participant_1_id.eq.${userId},participant_2_id.eq.${userId})`
       },
-      async (payload) => {
+      async (payload: ConversationPayload) => {
         console.log('🔍 [subscribeToConversations] Conversation update received:', payload);
+
+        // Now we can safely access payload.new.id with proper typing
+        if (!payload.new?.id) {
+          console.error('🔍 [subscribeToConversations] Invalid payload - missing conversation ID');
+          onError('Invalid conversation payload received');
+          return;
+        }
 
         // Fetch the complete conversation with participant info using explicit type assertion
         const { data: conversation, error } = await supabase
