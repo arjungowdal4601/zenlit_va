@@ -145,7 +145,8 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
       
       if (result.success) {
         console.log('OTP verified successfully, user authenticated');
-        setSignupStep('password'); // Move to password step instead of complete
+        // Move to password creation step
+        setSignupStep('password');
       } else {
         console.error('OTP verification failed:', result.error);
         setError(result.error || 'Invalid verification code');
@@ -573,7 +574,7 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
                       {isLoading ? (
                         <>
                           <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                          Setting Password...
+                          Creating Password...
                         </>
                       ) : (
                           "Create Password"
@@ -599,7 +600,7 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
             )}
 
             {/* Toggle between login/signup */}
-            {signupStep === 'email' && (
+            {(currentView === 'login' || signupStep === 'email') && (
               <div className="mt-6 text-center">
                 <p className="text-gray-400">
                   {currentView === 'login' ? "Don't have an account? " : "Already have an account? "}
@@ -615,7 +616,7 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
           </div>
 
           {/* Terms and Privacy */}
-          {signupStep === 'email' && (
+          {(currentView === 'login' || signupStep === 'email') && (
             <div className="mt-6 text-center pb-8">
               <p className="text-xs text-gray-500">
                 By continuing, you agree to our{' '}
