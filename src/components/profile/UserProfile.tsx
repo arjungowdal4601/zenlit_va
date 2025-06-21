@@ -1,22 +1,80 @@
 import React from 'react';
 import { User } from '../../types';
 import { Avatar } from '../common/Avatar';
-import { SocialLinks } from '../common/SocialLinks';
+import { IconBrandInstagram, IconBrandLinkedin, IconBrandX } from '@tabler/icons-react';
 
 interface Props {
   user: User;
   posts?: any[]; // Accept real posts from props
+  isOwnProfile?: boolean; // New prop to determine if viewing own profile
 }
 
-export const UserProfile: React.FC<Props> = ({ user, posts = [] }) => {
-  // Only use real posts passed as props - no more mock data generation
+export const UserProfile: React.FC<Props> = ({ user, posts = [], isOwnProfile = false }) => {
+  // Helper function to check if a URL is valid and not a placeholder
+  const isValidUrl = (url: string | undefined | null): boolean => {
+    return !!(url && url.trim() !== '' && url !== '#');
+  };
+
+  // Get social links based on profile type
+  const getSocialLinks = () => {
+    const links = [
+      { url: user.twitterUrl, Icon: IconBrandX, title: 'X (Twitter)' },
+      { url: user.instagramUrl, Icon: IconBrandInstagram, title: 'Instagram' },
+      { url: user.linkedInUrl, Icon: IconBrandLinkedin, title: 'LinkedIn' }
+    ];
+
+    if (isOwnProfile) {
+      // For own profile: show all icons, green if active, grey if inactive
+      return links.map(({ url, Icon, title }) => {
+        const isActive = isValidUrl(url);
+        return (
+          <div key={title} className="relative">
+            {isActive ? (
+              <a
+                href={url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-green-500 hover:text-green-400 transition-colors"
+                title={title}
+              >
+                <Icon size={24} />
+              </a>
+            ) : (
+              <div
+                className="text-gray-400 cursor-default pointer-events-none"
+                title="Not added"
+              >
+                <Icon size={24} />
+              </div>
+            )}
+          </div>
+        );
+      });
+    } else {
+      // For other profiles: only show active (green) icons
+      return links
+        .filter(({ url }) => isValidUrl(url))
+        .map(({ url, Icon, title }) => (
+          <a
+            key={title}
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-green-500 hover:text-green-400 transition-colors"
+            title={title}
+          >
+            <Icon size={24} />
+          </a>
+        ));
+    }
+  };
 
   return (
     <div className="min-h-screen bg-black">
-      {/* Cover Image - Use local default instead of stock image */}
+      {/* Cover Image */}
       <div className="relative h-48 bg-gradient-to-b from-blue-900 to-black">
         <img
-          src="/images/default-cover.jpg"
+          src={user.coverPhotoUrl || "/images/default-cover.jpg"}
           alt="Cover"
           className="w-full h-full object-cover opacity-50"
         />
@@ -26,7 +84,7 @@ export const UserProfile: React.FC<Props> = ({ user, posts = [] }) => {
       <div className="relative px-4 pb-4">
         <div className="flex flex-col items-center -mt-16">
           <Avatar
-            src={user.dpUrl}
+            src={user.dpUrl || '/images/default-avatar.png'}
             alt={user.name}
             size="lg"
           />
@@ -37,8 +95,8 @@ export const UserProfile: React.FC<Props> = ({ user, posts = [] }) => {
           <p className="text-gray-400 mt-2">{user.bio}</p>
           
           {/* Social Links */}
-          <div className="mt-6">
-            <SocialLinks links={user.links} className="justify-center" />
+          <div className="mt-6 flex gap-6">
+            {getSocialLinks()}
           </div>
         </div>
 
@@ -66,7 +124,7 @@ export const UserProfile: React.FC<Props> = ({ user, posts = [] }) => {
             <div className="text-center py-12">
               <div className="w-16 h-16 bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
                 <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
               </div>
               <p className="text-gray-400 mb-2">No posts yet</p>

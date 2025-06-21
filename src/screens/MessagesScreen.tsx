@@ -14,6 +14,7 @@ import {
   type Conversation,
   type MessageWithSender
 } from '../lib/messaging';
+import { requestUserLocation, getRadarUsers } from '../lib/location';
 
 interface Props {
   selectedUser?: (User & { isNearby?: boolean }) | null;
@@ -36,6 +37,7 @@ export const MessagesScreen: React.FC<Props> = ({
   const [isMobile] = useState(window.innerWidth < 768);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+  const [radarUserIds, setRadarUserIds] = useState<string[]>([]);
 
   // Use refs to store subscription instances and prevent multiple subscriptions
   const conversationSubscriptionRef = useRef<any>(null);
@@ -66,6 +68,9 @@ export const MessagesScreen: React.FC<Props> = ({
     const setupConversationSubscription = async () => {
       try {
         console.log('🔍 [MessagesScreen] Setting up conversation subscription for user:', currentUserId);
+        
+        // Load radar users for filtering
+        await loadRadarUsers();
         
         // Load conversations first
         await loadConversations(currentUserId);
@@ -208,6 +213,36 @@ export const MessagesScreen: React.FC<Props> = ({
     }
   };
 
+  const loadRadarUsers = async () => {
+    try {
+      console.log('🔍 [MessagesScreen] Loading radar users for filtering...');
+      
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Get user's location for radar filtering
+      const locationResult = await requestUserLocation();
+      if (!locationResult.success || !locationResult.location) {
+        console.log('🔍 [MessagesScreen] No location available, allowing all conversations');
+        setRadarUserIds([]);
+        return;
+      }
+
+      // Get radar users
+      const radarResult = await getRadarUsers(user.id, locationResult.location);
+      if (radarResult.success && radarResult.userIds) {
+        console.log('🔍 [MessagesScreen] Radar user IDs loaded:', radarResult.userIds);
+        setRadarUserIds(radarResult.userIds);
+      } else {
+        console.log('🔍 [MessagesScreen] No radar users found');
+        setRadarUserIds([]);
+      }
+    } catch (error) {
+      console.error('🔍 [MessagesScreen] Error loading radar users:', error);
+      setRadarUserIds([]);
+    }
+  };
+
   const loadConversations = async (userId: string) => {
     try {
       console.log('🔍 [MessagesScreen] Loading conversations for user:', userId);
@@ -216,7 +251,19 @@ export const MessagesScreen: React.FC<Props> = ({
       
       if (result.success && result.conversations) {
         console.log('🔍 [MessagesScreen] Conversations loaded successfully:', result.conversations);
-        setConversations(result.conversations);
+        
+        // Filter conversations to only show radar users if radar filtering is enabled
+        let filteredConversations = result.conversations;
+        
+        if (radarUserIds.length > 0) {
+          filteredConversations = result.conversations.filter(conv => {
+            const otherParticipantId = conv.other_participant?.id;
+            return otherParticipantId && radarUserIds.includes(otherParticipantId);
+          });
+          console.log('🔍 [MessagesScreen] Filtered conversations by radar:', filteredConversations);
+        }
+        
+        setConversations(filteredConversations);
       } else {
         console.error('🔍 [MessagesScreen] Failed to load conversations:', result.error);
         setConversations([]);
@@ -230,6 +277,12 @@ export const MessagesScreen: React.FC<Props> = ({
   const handleSelectUserForChat = async (user: User & { isNearby?: boolean }) => {
     if (!currentUserId) {
       console.error('🔍 [MessagesScreen] No current user ID available');
+      return;
+    }
+
+    // Check if user is in radar (if radar filtering is enabled)
+    if (radarUserIds.length > 0 && !radarUserIds.includes(user.id)) {
+      alert('You can only message people who are nearby in your radar.');
       return;
     }
 
@@ -335,6 +388,15 @@ export const MessagesScreen: React.FC<Props> = ({
               <div className="px-4 py-3 bg-black border-b border-gray-800 flex-shrink-0">
                 <h2 className="text-xl font-bold text-white mb-3">Messages</h2>
                 
+                {/* Radar Filter Info */}
+                {radarUserIds.length > 0 && (
+                  <div className="mb-3 p-2 bg-blue-900/20 border border-blue-700/30 rounded-lg">
+                    <p className="text-xs text-blue-300">
+                      Showing conversations with nearby users only
+                    </p>
+                  </div>
+                )}
+                
                 {/* Search Input */}
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -399,6 +461,15 @@ export const MessagesScreen: React.FC<Props> = ({
             {/* Header with Search */}
             <div className="px-4 py-3 bg-black border-b border-gray-800 flex-shrink-0">
               <h2 className="text-xl font-bold text-white mb-3">Messages</h2>
+              
+              {/* Radar Filter Info */}
+              {radarUserIds.length > 0 && (
+                <div className="mb-3 p-2 bg-blue-900/20 border border-blue-700/30 rounded-lg">
+                  <p className="text-xs text-blue-300">
+                    Showing conversations with nearby users only
+                  </p>
+                </div>
+              )}
               
               {/* Search Input */}
               <div className="relative">

@@ -4,8 +4,8 @@ import { UserProfile } from '../components/profile/UserProfile';
 import { User, Post } from '../types';
 import { ChevronLeftIcon } from '@heroicons/react/24/outline';
 import { supabase } from '../lib/supabase';
-import { getNearbyPosts } from '../lib/posts';
-import { requestUserLocation } from '../lib/location';
+import { getAllPosts } from '../lib/posts';
+import { requestUserLocation, getRadarUsers } from '../lib/location';
 
 interface Props {
   userGender: 'male' | 'female';
@@ -17,27 +17,69 @@ export const HomeScreen: React.FC<Props> = ({ userGender }) => {
   const [isLoading, setIsLoading] = useState(true);
   
   useEffect(() => {
-    loadPosts();
+    loadFilteredPosts();
   }, []);
 
-  const loadPosts = async () => {
+  const loadFilteredPosts = async () => {
     try {
+      console.log('🔍 [HomeScreen] Loading filtered posts...');
+      
       const { data: { user }, error } = await supabase.auth.getUser();
       if (error || !user) {
+        console.error('🔍 [HomeScreen] No authenticated user');
         setPosts([]);
         return;
       }
 
-      const loc = await requestUserLocation();
-      if (!loc.success || !loc.location) {
+      // Get user's location for radar filtering
+      const locationResult = await requestUserLocation();
+      if (!locationResult.success || !locationResult.location) {
+        console.log('🔍 [HomeScreen] No location available, showing all posts');
+        // If no location, show all posts
+        const allPosts = await getAllPosts(50);
+        setPosts(allPosts);
+        return;
+      }
+
+      // Get radar users (users in same location bucket with visibility on)
+      const radarResult = await getRadarUsers(user.id, locationResult.location);
+      if (!radarResult.success || !radarResult.userIds) {
+        console.log('🔍 [HomeScreen] No radar users found');
         setPosts([]);
         return;
       }
 
-      const nearby = await getNearbyPosts(user.id, loc.location, 50);
-      setPosts(nearby);
+      console.log('🔍 [HomeScreen] Radar user IDs:', radarResult.userIds);
+
+      // Get all posts and filter by radar users + visibility
+      const allPosts = await getAllPosts(200); // Get more posts to filter from
+      
+      // Filter posts to only show from radar users with visibility enabled
+      const { data: visibleUsers, error: visibilityError } = await supabase
+        .from('profiles')
+        .select('id')
+        .in('id', radarResult.userIds)
+        .eq('hide_from_radar', false); // Only users with visibility ON
+
+      if (visibilityError) {
+        console.error('🔍 [HomeScreen] Error checking user visibility:', visibilityError);
+        setPosts(allPosts); // Fallback to all posts
+        return;
+      }
+
+      const visibleUserIds = (visibleUsers || []).map(u => u.id);
+      console.log('🔍 [HomeScreen] Visible user IDs:', visibleUserIds);
+
+      const filteredPosts = allPosts.filter(post => 
+        visibleUserIds.includes(post.userId)
+      );
+
+      console.log('🔍 [HomeScreen] Filtered posts count:', filteredPosts.length);
+      setPosts(filteredPosts);
+
     } catch (err) {
-      console.error('Error loading posts:', err);
+      console.error('🔍 [HomeScreen] Error loading posts:', err);
+      setPosts([]);
     } finally {
       setIsLoading(false);
     }
@@ -45,6 +87,8 @@ export const HomeScreen: React.FC<Props> = ({ userGender }) => {
 
   const handleUserClick = async (userId: string) => {
     try {
+      console.log('🔍 [HomeScreen] Loading user profile for:', userId);
+      
       // Get user profile
       const { data: profile, error } = await supabase
         .from('profiles')
@@ -53,14 +97,15 @@ export const HomeScreen: React.FC<Props> = ({ userGender }) => {
         .maybeSingle();
 
       if (error || !profile) {
-        console.error('Error loading user profile:', error);
+        console.error('🔍 [HomeScreen] Error loading user profile:', error);
         return;
       }
 
-      // Transform database profile to User type - use local default instead of stock image
+      // Transform database profile to User type
       const transformedUser: User = {
         id: profile.id,
         name: profile.name,
+        username: profile.username,
         dpUrl: profile.profile_photo_url || '/images/default-avatar.png',
         bio: profile.bio,
         gender: profile.gender,
@@ -78,7 +123,7 @@ export const HomeScreen: React.FC<Props> = ({ userGender }) => {
       };
       setSelectedUser(transformedUser);
     } catch (error) {
-      console.error('Error loading user:', error);
+      console.error('🔍 [HomeScreen] Error loading user:', error);
     }
   };
 
@@ -130,8 +175,8 @@ export const HomeScreen: React.FC<Props> = ({ userGender }) => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
             </div>
-            <p className="text-gray-400 mb-2">No nearby posts found</p>
-            <p className="text-gray-500 text-sm">Be the first to share something in your area!</p>
+            <p className="text-gray-400 mb-2">No posts from nearby users</p>
+            <p className="text-gray-500 text-sm">Posts from people in your area will appear here!</p>
           </div>
         )}
       </div>

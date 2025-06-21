@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { User, Post } from '../types';
 import { IconBrandInstagram, IconBrandLinkedin, IconBrandX } from '@tabler/icons-react';
-import { ChevronLeftIcon, Cog6ToothIcon, UserIcon, ArrowRightOnRectangleIcon, CameraIcon } from '@heroicons/react/24/outline';
+import { ChevronLeftIcon, Cog6ToothIcon, UserIcon, ArrowRightOnRectangleIcon } from '@heroicons/react/24/outline';
 import { PostsGalleryScreen } from './PostsGalleryScreen';
 import { EditProfileScreen } from './EditProfileScreen';
 import { supabase } from '../lib/supabase';
-import { getUserPosts, getAllPosts } from '../lib/posts';
+import { getUserPosts } from '../lib/posts';
 
 interface Props {
   user?: User | null;
@@ -51,15 +51,14 @@ export const ProfileScreen: React.FC<Props> = ({
 
   const loadUserPosts = async (userId: string) => {
     try {
-      console.log('Loading posts for user:', userId);
+      console.log('🔍 [ProfileScreen] Loading posts for user:', userId);
       
       // Use getUserPosts for any user (current or other users)
-      // The RLS policy now allows viewing all posts for authenticated users
       const posts = await getUserPosts(userId);
-      console.log('Loaded posts:', posts);
+      console.log('🔍 [ProfileScreen] Loaded posts:', posts);
       setUserPosts(posts);
     } catch (error) {
-      console.error('Load user posts error:', error);
+      console.error('🔍 [ProfileScreen] Load user posts error:', error);
       setUserPosts([]);
     }
   };
@@ -80,7 +79,7 @@ export const ProfileScreen: React.FC<Props> = ({
         .from('profiles')
         .select('*')
         .eq('id', user.id)
-        .maybeSingle(); // Use maybeSingle instead of single
+        .maybeSingle();
 
       if (profileError && profileError.code !== 'PGRST116') {
         console.error('Profile fetch error:', profileError);
@@ -157,7 +156,7 @@ export const ProfileScreen: React.FC<Props> = ({
           })
         .eq('id', user.id)
         .select()
-        .maybeSingle(); // Use maybeSingle instead of single
+        .maybeSingle();
 
       if (updateError) {
         throw updateError;
@@ -197,6 +196,65 @@ export const ProfileScreen: React.FC<Props> = ({
     setUserPosts(prevPosts => prevPosts.filter(post => post.id !== postId));
   };
 
+  // Helper function to check if a URL is valid and not a placeholder
+  const isValidUrl = (url: string | undefined | null): boolean => {
+    return !!(url && url.trim() !== '' && url !== '#');
+  };
+
+  // Get social links based on profile type
+  const getSocialLinks = () => {
+    const links = [
+      { url: profileData?.twitter_url, Icon: IconBrandX, title: 'X (Twitter)' },
+      { url: profileData?.instagram_url, Icon: IconBrandInstagram, title: 'Instagram' },
+      { url: profileData?.linked_in_url, Icon: IconBrandLinkedin, title: 'LinkedIn' }
+    ];
+
+    if (isCurrentUser) {
+      // For own profile: show all icons, green if active, grey if inactive
+      return links.map(({ url, Icon, title }) => {
+        const isActive = isValidUrl(url);
+        return (
+          <div key={title} className="relative">
+            {isActive ? (
+              <a
+                href={url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="p-3 bg-gray-800 rounded-full text-green-500 hover:text-green-400 hover:bg-gray-700 transition-all active:scale-95"
+                title={title}
+              >
+                <Icon size={24} />
+              </a>
+            ) : (
+              <div
+                className="p-3 bg-gray-800 rounded-full text-gray-400 cursor-default pointer-events-none"
+                title="Not added"
+              >
+                <Icon size={24} />
+              </div>
+            )}
+          </div>
+        );
+      });
+    } else {
+      // For other profiles: only show active (green) icons
+      return links
+        .filter(({ url }) => isValidUrl(url))
+        .map(({ url, Icon, title }) => (
+          <a
+            key={title}
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="p-3 bg-gray-800 rounded-full text-green-500 hover:text-green-400 hover:bg-gray-700 transition-all active:scale-95"
+            title={title}
+          >
+            <Icon size={24} />
+          </a>
+        ));
+    }
+  };
+
   // Show loading state
   if (isLoading || !profileData) {
     return (
@@ -208,11 +266,6 @@ export const ProfileScreen: React.FC<Props> = ({
       </div>
     );
   }
-
-  // Helper function to check if a URL is valid and not a placeholder
-  const isValidUrl = (url: string | undefined | null): boolean => {
-    return !!(url && url.trim() !== '' && url !== '#');
-  };
 
   if (showEditProfile) {
     return (
@@ -338,38 +391,9 @@ export const ProfileScreen: React.FC<Props> = ({
             {profileData.bio || 'No bio available'}
           </p>
           
-          {/* Social Links - Only show icons if URLs are valid */}
-          <div className="flex justify-center gap-8 mt-8">
-            {isValidUrl(profileData.twitter_url) && (
-              <a
-                href={profileData.twitter_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="p-3 bg-gray-800 rounded-full text-gray-300 hover:text-white hover:bg-gray-700 transition-all active:scale-95"
-              >
-                <IconBrandX size={24} />
-              </a>
-            )}
-            {isValidUrl(profileData.instagram_url) && (
-              <a
-                href={profileData.instagram_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="p-3 bg-gray-800 rounded-full text-gray-300 hover:text-white hover:bg-gray-700 transition-all active:scale-95"
-              >
-                <IconBrandInstagram size={24} />
-              </a>
-            )}
-            {isValidUrl(profileData.linked_in_url) && (
-              <a
-                href={profileData.linked_in_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="p-3 bg-gray-800 rounded-full text-gray-300 hover:text-white hover:bg-gray-700 transition-all active:scale-95"
-              >
-                <IconBrandLinkedin size={24} />
-              </a>
-            )}
+          {/* Social Links */}
+          <div className="flex justify-center gap-4 mt-8">
+            {getSocialLinks()}
           </div>
         </div>
         

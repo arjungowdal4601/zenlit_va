@@ -327,6 +327,45 @@ export const getNearbyUsers = async (
   }
 };
 
+// Get radar users for messaging filter
+export const getRadarUsers = async (
+  currentUserId: string,
+  currentLocation: UserLocation
+): Promise<{
+  success: boolean;
+  userIds?: string[];
+  error?: string;
+}> => {
+  try {
+    console.log('🔍 Getting radar users for messaging filter');
+
+    const result = await getNearbyUsers(currentUserId, currentLocation, 100);
+    
+    if (!result.success) {
+      return {
+        success: false,
+        error: result.error
+      };
+    }
+
+    const userIds = (result.users || []).map(user => user.id);
+    
+    console.log('🔍 Radar user IDs for messaging:', userIds);
+
+    return {
+      success: true,
+      userIds
+    };
+
+  } catch (error) {
+    console.error('🔍 Error getting radar users:', error);
+    return {
+      success: false,
+      error: 'Failed to get radar users'
+    };
+  }
+};
+
 // Update radar visibility setting
 export const updateRadarVisibility = async (
   userId: string,

@@ -25,15 +25,63 @@ export const ChatWindow = ({
   isLoading = false
 }: ChatWindowProps) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [optimisticMessages, setOptimisticMessages] = useState<MessageWithSender[]>([]);
   const otherParticipant = conversation.other_participant;
+
+  // Combine real messages with optimistic messages
+  const allMessages = [...messages, ...optimisticMessages];
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
+  // Auto-scroll when messages change
   useEffect(() => {
     scrollToBottom();
+  }, [allMessages]);
+
+  // Clear optimistic messages when real messages update
+  useEffect(() => {
+    if (messages.length > 0) {
+      // Remove optimistic messages that have been confirmed
+      setOptimisticMessages(prev => 
+        prev.filter(optimistic => 
+          !messages.some(real => real.content === optimistic.content && 
+                                 real.senderId === optimistic.senderId &&
+                                 Math.abs(new Date(real.timestamp).getTime() - new Date(optimistic.timestamp).getTime()) < 5000)
+        )
+      );
+    }
   }, [messages]);
+
+  const handleSendMessage = async (content: string) => {
+    // Optimistic rendering - show message immediately
+    const optimisticMessage: MessageWithSender = {
+      id: `optimistic-${Date.now()}`,
+      senderId: currentUserId,
+      receiverId: otherParticipant?.id || '',
+      content,
+      timestamp: new Date().toISOString(),
+      read: false,
+      sender: {
+        id: currentUserId,
+        name: 'You',
+        profile_photo_url: undefined
+      }
+    };
+
+    setOptimisticMessages(prev => [...prev, optimisticMessage]);
+    
+    // Send the actual message
+    onSendMessage(content);
+
+    // Remove optimistic message after 10 seconds if not confirmed
+    setTimeout(() => {
+      setOptimisticMessages(prev => 
+        prev.filter(msg => msg.id !== optimisticMessage.id)
+      );
+    }, 10000);
+  };
 
   const handleProfileClick = () => {
     if (onViewProfile && otherParticipant) {
@@ -107,7 +155,7 @@ export const ChatWindow = ({
               <p className="text-gray-400 text-sm">Loading messages...</p>
             </div>
           </div>
-        ) : messages.length === 0 ? (
+        ) : allMessages.length === 0 ? (
           <div className="flex items-center justify-center h-full">
             <div className="text-center">
               <img
@@ -120,11 +168,12 @@ export const ChatWindow = ({
           </div>
         ) : (
           <>
-            {messages.map((message) => (
+            {allMessages.map((message, index) => (
               <MessageBubble
                 key={message.id}
                 message={message}
                 isCurrentUser={message.senderId === currentUserId}
+                isOptimistic={message.id.startsWith('optimistic-')}
               />
             ))}
             <div ref={messagesEndRef} />
@@ -134,7 +183,7 @@ export const ChatWindow = ({
 
       {/* Message Input */}
       <div className="border-t border-gray-800 p-4">
-        <MessageInput onSendMessage={onSendMessage} />
+        <MessageInput onSendMessage={handleSendMessage} />
       </div>
     </div>
   );
