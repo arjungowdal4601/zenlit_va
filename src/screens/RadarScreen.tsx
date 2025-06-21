@@ -15,6 +15,7 @@ import {
   stopWatchingLocation,
   hasLocationChanged,
   saveUserLocation,
+  removeUserLocation,
   createDebouncedLocationUpdate,
   updateRadarVisibility
 } from '../lib/location';
@@ -50,6 +51,7 @@ export const RadarScreen: React.FC<Props> = ({
   const [isUpdatingUsers, setIsUpdatingUsers] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [hideFromRadar, setHideFromRadar] = useState(false);
+  const [locationSharingEnabled, setLocationSharingEnabled] = useState(false); // New state for location toggle
 
   // Refs for cleanup
   const locationWatchId = useRef<number | null>(null);
@@ -70,9 +72,34 @@ export const RadarScreen: React.FC<Props> = ({
     };
   }, []);
 
+  // Handle app close/unload - remove location when app is closed
+  useEffect(() => {
+    const handleBeforeUnload = async () => {
+      if (currentUser && locationSharingEnabled) {
+        // Remove location from database when app is closed
+        await removeUserLocation(currentUser.id);
+      }
+    };
+
+    const handleVisibilityChange = async () => {
+      if (document.hidden && currentUser && locationSharingEnabled) {
+        // Remove location when app goes to background
+        await removeUserLocation(currentUser.id);
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [currentUser, locationSharingEnabled]);
+
   const initializeRadar = async () => {
     try {
-      console.log('🚀 RADAR DEBUG: Initializing radar screen with coordinate bucketing');
+      console.log('🚀 RADAR DEBUG: Initializing radar screen with location toggle');
       
       // Get current user
       const { data: { user }, error: userError } = await supabase.auth.getUser();
@@ -110,8 +137,11 @@ export const RadarScreen: React.FC<Props> = ({
       setCurrentUser(profile);
       setHideFromRadar(profile.hide_from_radar || false);
 
-      // Check if user already has location data
-      if (profile.latitude && profile.longitude) {
+      // Check if user has location data - this determines initial toggle state
+      const hasLocationData = !!(profile.latitude && profile.longitude);
+      setLocationSharingEnabled(hasLocationData);
+
+      if (hasLocationData) {
         console.log('🚀 RADAR DEBUG: User has existing location data');
         const userLocation: UserLocation = {
           latitude: profile.latitude,
@@ -120,30 +150,16 @@ export const RadarScreen: React.FC<Props> = ({
         };
         setCurrentLocation(userLocation);
         setLocationPermission({ granted: true, denied: false, pending: false });
-        // Always load nearby users since radar is always on
+        // Load nearby users since location sharing is enabled
         await loadNearbyUsers(user.id, userLocation);
         
         // Start location tracking for dynamic updates
         startLocationTracking(user.id);
       } else {
-        console.log('🚀 RADAR DEBUG: User has no location data, need location for coordinate matching');
-        // Try to get real location first
-        const permissionStatus = await checkLocationPermission();
-        setLocationPermission(permissionStatus);
-        
-        if (permissionStatus.granted && isGeolocationSupported() && isSecureContext()) {
-          // Try to get real location
-          try {
-            await handleRequestLocation();
-          } catch (error) {
-            console.log('🚀 RADAR DEBUG: Real location failed, cannot show users without location');
-            setUsers([]); // No users without location for coordinate matching
-          }
-        } else {
-          // Cannot show users without location
-          console.log('🚀 RADAR DEBUG: Location not available, cannot show users');
-          setUsers([]);
-        }
+        console.log('🚀 RADAR DEBUG: No location data, location sharing disabled');
+        // No location data means location sharing is off
+        setUsers([]);
+        setLocationPermission({ granted: false, denied: false, pending: true });
       }
     } catch (error) {
       console.error('🚀 RADAR DEBUG: Error initializing radar:', error);
@@ -283,8 +299,9 @@ export const RadarScreen: React.FC<Props> = ({
         setLocationPermission({ granted: true, denied: false, pending: false });
         setShowLocationModal(false);
         setLastLocationUpdate(Date.now());
+        setLocationSharingEnabled(true); // Enable location sharing
         
-        // Load users with exact coordinate match (always on)
+        // Load users with exact coordinate match
         await loadNearbyUsers(currentUser.id, result.location);
         
         // Start location tracking for dynamic updates
@@ -349,6 +366,47 @@ export const RadarScreen: React.FC<Props> = ({
 
   const handleEnablePreciseLocation = () => {
     setShowLocationModal(true);
+  };
+
+  // Handle location sharing toggle
+  const handleLocationSharingToggle = async () => {
+    if (!currentUser) return;
+
+    const newSharingState = !locationSharingEnabled;
+    
+    try {
+      if (newSharingState) {
+        // Enable location sharing - request location
+        await handleRequestLocation();
+      } else {
+        // Disable location sharing - remove location from database
+        console.log('Disabling location sharing, removing location from database');
+        
+        // Stop location tracking
+        if (locationWatchId.current !== null) {
+          stopWatchingLocation(locationWatchId.current);
+          locationWatchId.current = null;
+          setIsLocationTracking(false);
+        }
+        
+        // Remove location from database
+        const result = await removeUserLocation(currentUser.id);
+        
+        if (result.success) {
+          setLocationSharingEnabled(false);
+          setCurrentLocation(null);
+          setUsers([]); // Clear nearby users
+          setLocationPermission({ granted: false, denied: false, pending: true });
+          console.log('Location sharing disabled and location removed from database');
+        } else {
+          console.error('Failed to remove location:', result.error);
+          alert('Failed to disable location sharing. Please try again.');
+        }
+      }
+    } catch (error) {
+      console.error('Error toggling location sharing:', error);
+      alert('Failed to update location sharing. Please try again.');
+    }
   };
 
   // Handle radar visibility toggle
@@ -439,6 +497,7 @@ export const RadarScreen: React.FC<Props> = ({
       if (
         currentUser &&
         currentLocation &&
+        locationSharingEnabled &&
         !isRefreshing &&
         Date.now() - lastLocationUpdate >= 120000
       ) {
@@ -447,7 +506,7 @@ export const RadarScreen: React.FC<Props> = ({
     }, 10000); // check every 10 seconds
 
     return () => clearInterval(interval);
-  }, [currentUser, currentLocation, lastLocationUpdate, isRefreshing]);
+  }, [currentUser, currentLocation, locationSharingEnabled, lastLocationUpdate, isRefreshing]);
 
   if (isLoading) {
     return (
@@ -484,7 +543,7 @@ export const RadarScreen: React.FC<Props> = ({
                     currentLocation ? 'text-blue-400' : 'text-gray-400'
                   }`}>
                     {isLocationTracking ? 'Live tracking' : 
-                     currentLocation ? 'Location enabled' : 'Location required'}
+                     currentLocation ? 'Location enabled' : 'Location disabled'}
                   </span>
                 </div>
                 
@@ -500,8 +559,32 @@ export const RadarScreen: React.FC<Props> = ({
               </div>
             </div>
             
-            {/* Right side - Refresh Button */}
-            <div className="flex flex-col items-end gap-1 ml-4">
+            {/* Right side - Location Sharing Toggle */}
+            <div className="flex flex-col items-end gap-2 ml-4">
+              {/* Location Sharing Toggle */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-400">Location</span>
+                <button
+                  onClick={handleLocationSharingToggle}
+                  disabled={isRequestingLocation}
+                  className={`relative w-12 h-6 rounded-full transition-colors ${
+                    locationSharingEnabled ? 'bg-green-600' : 'bg-gray-600'
+                  } ${isRequestingLocation ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  <div
+                    className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${
+                      locationSharingEnabled ? 'translate-x-7' : 'translate-x-1'
+                    }`}
+                  />
+                  {isRequestingLocation && (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin" />
+                    </div>
+                  )}
+                </button>
+              </div>
+              
+              {/* Refresh Button */}
               <button
                 onClick={handleRefresh}
                 disabled={isRefreshing || !currentLocation}
@@ -552,26 +635,24 @@ export const RadarScreen: React.FC<Props> = ({
       </div>
 
       {/* Location Status Info */}
-      {!currentLocation && (
+      {!locationSharingEnabled && (
         <div className="px-4 py-3 bg-blue-900/20 border-b border-blue-700/30">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <ExclamationTriangleIcon className="w-5 h-5 text-blue-500" />
               <div>
-                <span className="text-sm text-blue-400 font-medium">Location Required</span>
+                <span className="text-sm text-blue-400 font-medium">Location Sharing Disabled</span>
                 <p className="text-xs text-blue-300">
-                  Enable location to find people nearby
+                  Enable location sharing to find people nearby
                 </p>
               </div>
             </div>
-            {isGeolocationSupported() && isSecureContext() && (
-              <button
-                onClick={handleEnablePreciseLocation}
-                className="px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors"
-              >
-                Enable
-              </button>
-            )}
+            <button
+              onClick={handleLocationSharingToggle}
+              className="px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors"
+            >
+              Enable
+            </button>
           </div>
         </div>
       )}
@@ -602,7 +683,7 @@ export const RadarScreen: React.FC<Props> = ({
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
       >
-        {currentLocation ? (
+        {locationSharingEnabled && currentLocation ? (
           users.length > 0 ? (
             users.map((user) => (
               <RadarUserCard
@@ -627,15 +708,15 @@ export const RadarScreen: React.FC<Props> = ({
             <div className="w-16 h-16 bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
               <ExclamationTriangleIcon className="w-8 h-8 text-gray-400" />
             </div>
-            <p className="text-gray-400 mb-2">Location Access Required</p>
+            <p className="text-gray-400 mb-2">Location Sharing Disabled</p>
             <p className="text-gray-500 text-sm mb-4">
-              We need your location to find people nearby
+              Enable location sharing to find people nearby
             </p>
             <button
-              onClick={handleEnablePreciseLocation}
+              onClick={handleLocationSharingToggle}
               className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 active:scale-95 transition-all"
             >
-              Enable Location
+              Enable Location Sharing
             </button>
           </div>
         )}

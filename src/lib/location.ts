@@ -213,6 +213,45 @@ export const saveUserLocation = async (
   }
 };
 
+// Remove user's location from their profile
+export const removeUserLocation = async (
+  userId: string
+): Promise<{
+  success: boolean;
+  error?: string;
+}> => {
+  try {
+    console.log('Removing user location from profile:', userId);
+
+    const { error } = await supabase
+      .from('profiles')
+      .update({
+        latitude: null,
+        longitude: null,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', userId);
+
+    if (error) {
+      console.error('Location removal error:', error);
+      return {
+        success: false,
+        error: 'Failed to remove location from profile'
+      };
+    }
+
+    console.log('Location removed successfully');
+    return { success: true };
+
+  } catch (error) {
+    console.error('Location removal error:', error);
+    return {
+      success: false,
+      error: 'Failed to remove location'
+    };
+  }
+};
+
 // Check if location coordinates have changed (rounded comparison)
 export const hasLocationChanged = (
   oldLocation: UserLocation,
