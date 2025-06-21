@@ -453,7 +453,7 @@ export const completeProfileSetup = async (profileData: ProfileSetupData): Promi
 };
 
 /**
- * Send password reset email
+ * Send password reset email (alternative method)
  */
 export const sendPasswordResetEmail = async (email: string): Promise<AuthResult> => {
   try {
