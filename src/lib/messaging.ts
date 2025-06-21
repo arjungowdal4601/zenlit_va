@@ -1,31 +1,8 @@
 import { supabase } from './supabase';
 import { Message } from '../types';
 import { REALTIME_SUBSCRIBE_STATES } from '@supabase/supabase-js';
-import type { Database } from '../types/supabase';
 
-// Type aliases for better type safety with join queries
-type ProfileJoin = {
-  id: string;
-  name: string;
-  username?: string;
-  profile_photo_url?: string;
-};
-
-type ConversationQueryResult = Database['public']['Tables']['conversations']['Row'] & {
-  participant_1: ProfileJoin;
-  participant_2: ProfileJoin;
-};
-
-type MessageQueryResult = Database['public']['Tables']['messages']['Row'] & {
-  sender: ProfileJoin;
-};
-
-type LatestMessageQueryResult = {
-  content: string;
-  created_at: string;
-  sender_id: string;
-};
-
+// Simplified types to avoid complex join issues
 export interface Conversation {
   id: string;
   participant_1_id: string;
@@ -89,16 +66,12 @@ export const getOrCreateConversation = async (
       };
     }
 
-    // Get the full conversation details with explicit type assertion
+    // Get the conversation details with separate queries to avoid join issues
     const { data: conversation, error: fetchError } = await supabase
       .from('conversations')
-      .select(`
-        *,
-        participant_1:participant_1_id(id, name, username, profile_photo_url),
-        participant_2:participant_2_id(id, name, username, profile_photo_url)
-      `)
+      .select('*')
       .eq('id', data)
-      .single() as { data: ConversationQueryResult | null; error: any };
+      .single();
 
     console.log('🔍 [getOrCreateConversation] Conversation fetch result:', { conversation, fetchError });
 
@@ -117,10 +90,20 @@ export const getOrCreateConversation = async (
       };
     }
 
-    // Determine the other participant
-    const otherParticipant = conversation.participant_1_id === currentUserId 
-      ? conversation.participant_2 
-      : conversation.participant_1;
+    // Get participant details separately
+    const otherParticipantId = conversation.participant_1_id === currentUserId 
+      ? conversation.participant_2_id 
+      : conversation.participant_1_id;
+
+    const { data: otherParticipant, error: participantError } = await supabase
+      .from('profiles')
+      .select('id, name, username, profile_photo_url')
+      .eq('id', otherParticipantId)
+      .single();
+
+    if (participantError) {
+      console.error('🔍 [getOrCreateConversation] Error fetching participant:', participantError);
+    }
 
     const formattedConversation: Conversation = {
       id: conversation.id,
@@ -129,7 +112,7 @@ export const getOrCreateConversation = async (
       created_at: conversation.created_at,
       updated_at: conversation.updated_at,
       last_message_at: conversation.last_message_at,
-      other_participant: otherParticipant
+      other_participant: otherParticipant || undefined
     };
 
     console.log('🔍 [getOrCreateConversation] Success:', formattedConversation);
@@ -166,16 +149,12 @@ export const getUserConversations = async (
       };
     }
 
-    // First, get conversations with participant info using explicit type assertion
+    // Get conversations
     const { data: conversations, error } = await supabase
       .from('conversations')
-      .select(`
-        *,
-        participant_1:participant_1_id(id, name, username, profile_photo_url),
-        participant_2:participant_2_id(id, name, username, profile_photo_url)
-      `)
+      .select('*')
       .or(`participant_1_id.eq.${userId},participant_2_id.eq.${userId}`)
-      .order('last_message_at', { ascending: false }) as { data: ConversationQueryResult[] | null; error: any };
+      .order('last_message_at', { ascending: false });
 
     console.log('🔍 [getUserConversations] Raw query result:', { conversations, error });
 
@@ -187,25 +166,28 @@ export const getUserConversations = async (
       };
     }
 
-    // For each conversation, get the latest message separately
+    // For each conversation, get the other participant and latest message
     const formattedConversations: Conversation[] = [];
     
     for (const conv of conversations || []) {
-      const otherParticipant = conv.participant_1_id === userId 
-        ? conv.participant_2 
-        : conv.participant_1;
+      const otherParticipantId = conv.participant_1_id === userId 
+        ? conv.participant_2_id 
+        : conv.participant_1_id;
 
-      // Get the latest message for this conversation with explicit type assertion
-      const { data: latestMessages, error: messageError } = await supabase
+      // Get other participant details
+      const { data: otherParticipant } = await supabase
+        .from('profiles')
+        .select('id, name, username, profile_photo_url')
+        .eq('id', otherParticipantId)
+        .single();
+
+      // Get latest message
+      const { data: latestMessages } = await supabase
         .from('messages')
         .select('content, created_at, sender_id')
         .eq('conversation_id', conv.id)
         .order('created_at', { ascending: false })
-        .limit(1) as { data: LatestMessageQueryResult[] | null; error: any };
-
-      if (messageError) {
-        console.error('🔍 [getUserConversations] Error fetching latest message for conversation:', conv.id, messageError);
-      }
+        .limit(1);
 
       const latestMessage = latestMessages && latestMessages.length > 0 
         ? latestMessages[0] 
@@ -218,7 +200,7 @@ export const getUserConversations = async (
         created_at: conv.created_at,
         updated_at: conv.updated_at,
         last_message_at: conv.last_message_at,
-        other_participant: otherParticipant,
+        other_participant: otherParticipant || undefined,
         latest_message: latestMessage
       });
     }
@@ -258,16 +240,13 @@ export const getConversationMessages = async (
       };
     }
 
-    // Get messages with sender info using explicit type assertion
+    // Get messages
     const { data: messages, error } = await supabase
       .from('messages')
-      .select(`
-        *,
-        sender:sender_id(id, name, profile_photo_url)
-      `)
+      .select('*')
       .eq('conversation_id', conversationId)
       .order('created_at', { ascending: true })
-      .limit(limit) as { data: MessageQueryResult[] | null; error: any };
+      .limit(limit);
 
     console.log('🔍 [getConversationMessages] Messages query result:', { messages, error });
 
@@ -279,16 +258,26 @@ export const getConversationMessages = async (
       };
     }
 
-    // Transform to MessageWithSender format
-    const formattedMessages: MessageWithSender[] = (messages || []).map(msg => ({
-      id: msg.id,
-      senderId: msg.sender_id,
-      receiverId: '', // Will be determined from conversation participants
-      content: msg.content,
-      timestamp: msg.created_at,
-      read: msg.read,
-      sender: msg.sender
-    }));
+    // Get sender details for each message
+    const formattedMessages: MessageWithSender[] = [];
+    
+    for (const msg of messages || []) {
+      const { data: sender } = await supabase
+        .from('profiles')
+        .select('id, name, profile_photo_url')
+        .eq('id', msg.sender_id)
+        .single();
+
+      formattedMessages.push({
+        id: msg.id,
+        senderId: msg.sender_id,
+        receiverId: '', // Will be determined from conversation participants
+        content: msg.content,
+        timestamp: msg.created_at,
+        read: msg.read,
+        sender: sender || undefined
+      });
+    }
 
     console.log('🔍 [getConversationMessages] Formatted messages:', formattedMessages);
 
@@ -326,7 +315,7 @@ export const sendMessage = async (
       };
     }
 
-    // Insert message and get result with sender info using explicit type assertion
+    // Insert message
     const { data: message, error } = await supabase
       .from('messages')
       .insert({
@@ -334,11 +323,8 @@ export const sendMessage = async (
         sender_id: senderId,
         content: content.trim()
       })
-      .select(`
-        *,
-        sender:sender_id(id, name, profile_photo_url)
-      `)
-      .single() as { data: MessageQueryResult | null; error: any };
+      .select()
+      .single();
 
     console.log('🔍 [sendMessage] Message insert result:', { message, error });
 
@@ -357,15 +343,21 @@ export const sendMessage = async (
       };
     }
 
-    // Transform to MessageWithSender format
+    // Get sender details
+    const { data: sender } = await supabase
+      .from('profiles')
+      .select('id, name, profile_photo_url')
+      .eq('id', senderId)
+      .single();
+
     const formattedMessage: MessageWithSender = {
       id: message.id,
       senderId: message.sender_id,
-      receiverId: '', // Will be determined from conversation participants
+      receiverId: '',
       content: message.content,
       timestamp: message.created_at,
       read: message.read,
-      sender: message.sender
+      sender: sender || undefined
     };
 
     return {
@@ -382,44 +374,7 @@ export const sendMessage = async (
   }
 };
 
-// Mark messages as read
-export const markMessagesAsRead = async (
-  conversationId: string,
-  userId: string
-): Promise<{
-  success: boolean;
-  error?: string;
-}> => {
-  try {
-    console.log('🔍 [markMessagesAsRead] Marking messages as read for conversation:', conversationId);
-
-    const { error } = await supabase
-      .from('messages')
-      .update({ read: true })
-      .eq('conversation_id', conversationId)
-      .neq('sender_id', userId)
-      .eq('read', false);
-
-    if (error) {
-      console.error('🔍 [markMessagesAsRead] Error marking messages as read:', error);
-      return {
-        success: false,
-        error: error.message || 'Failed to mark messages as read'
-      };
-    }
-
-    return { success: true };
-
-  } catch (error) {
-    console.error('🔍 [markMessagesAsRead] Error in markMessagesAsRead:', error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to mark messages as read'
-    };
-  }
-};
-
-// Subscribe to new messages in a conversation using Supabase v2 syntax
+// Subscribe to new messages in a conversation
 export const subscribeToMessages = (
   conversationId: string,
   onNewMessage: (message: MessageWithSender) => void,
@@ -440,8 +395,7 @@ export const subscribeToMessages = (
       async (payload) => {
         console.log('🔍 [subscribeToMessages] New message received:', payload);
 
-        // Type-safe access to payload.new
-        const newMessage = payload.new as Database['public']['Tables']['messages']['Row'];
+        const newMessage = payload.new as any;
         
         if (!newMessage?.id) {
           console.error('🔍 [subscribeToMessages] Invalid payload - missing message ID');
@@ -449,35 +403,21 @@ export const subscribeToMessages = (
           return;
         }
 
-        // Fetch the complete message with sender info using explicit type assertion
-        const { data: message, error } = await supabase
-          .from('messages')
-          .select(`
-            *,
-            sender:sender_id(id, name, profile_photo_url)
-          `)
-          .eq('id', newMessage.id)
-          .single() as { data: MessageQueryResult | null; error: any };
-
-        if (error) {
-          console.error('🔍 [subscribeToMessages] Error fetching new message details:', error);
-          onError('Failed to fetch new message details');
-          return;
-        }
-
-        if (!message) {
-          onError('New message not found');
-          return;
-        }
+        // Get sender details
+        const { data: sender } = await supabase
+          .from('profiles')
+          .select('id, name, profile_photo_url')
+          .eq('id', newMessage.sender_id)
+          .single();
 
         const formattedMessage: MessageWithSender = {
-          id: message.id,
-          senderId: message.sender_id,
+          id: newMessage.id,
+          senderId: newMessage.sender_id,
           receiverId: '',
-          content: message.content,
-          timestamp: message.created_at,
-          read: message.read,
-          sender: message.sender
+          content: newMessage.content,
+          timestamp: newMessage.created_at,
+          read: newMessage.read,
+          sender: sender || undefined
         };
 
         onNewMessage(formattedMessage);
@@ -493,7 +433,7 @@ export const subscribeToMessages = (
   return subscription;
 };
 
-// Subscribe to conversation updates using Supabase v2 syntax
+// Subscribe to conversation updates
 export const subscribeToConversations = (
   userId: string,
   onConversationUpdate: (conversation: Conversation) => void,
@@ -514,8 +454,7 @@ export const subscribeToConversations = (
       async (payload) => {
         console.log('🔍 [subscribeToConversations] Conversation update received:', payload);
 
-        // Type-safe access to payload.new
-        const newConversation = payload.new as Database['public']['Tables']['conversations']['Row'];
+        const newConversation = payload.new as any;
         
         if (!newConversation?.id) {
           console.error('🔍 [subscribeToConversations] Invalid payload - missing conversation ID');
@@ -523,40 +462,25 @@ export const subscribeToConversations = (
           return;
         }
 
-        // Fetch the complete conversation with participant info using explicit type assertion
-        const { data: conversation, error } = await supabase
-          .from('conversations')
-          .select(`
-            *,
-            participant_1:participant_1_id(id, name, username, profile_photo_url),
-            participant_2:participant_2_id(id, name, username, profile_photo_url)
-          `)
-          .eq('id', newConversation.id)
-          .single() as { data: ConversationQueryResult | null; error: any };
+        // Get other participant details
+        const otherParticipantId = newConversation.participant_1_id === userId 
+          ? newConversation.participant_2_id 
+          : newConversation.participant_1_id;
 
-        if (error) {
-          console.error('🔍 [subscribeToConversations] Error fetching conversation details:', error);
-          onError('Failed to fetch conversation details');
-          return;
-        }
-
-        if (!conversation) {
-          onError('Updated conversation not found');
-          return;
-        }
-
-        const otherParticipant = conversation.participant_1_id === userId 
-          ? conversation.participant_2 
-          : conversation.participant_1;
+        const { data: otherParticipant } = await supabase
+          .from('profiles')
+          .select('id, name, username, profile_photo_url')
+          .eq('id', otherParticipantId)
+          .single();
 
         const formattedConversation: Conversation = {
-          id: conversation.id,
-          participant_1_id: conversation.participant_1_id,
-          participant_2_id: conversation.participant_2_id,
-          created_at: conversation.created_at,
-          updated_at: conversation.updated_at,
-          last_message_at: conversation.last_message_at,
-          other_participant: otherParticipant
+          id: newConversation.id,
+          participant_1_id: newConversation.participant_1_id,
+          participant_2_id: newConversation.participant_2_id,
+          created_at: newConversation.created_at,
+          updated_at: newConversation.updated_at,
+          last_message_at: newConversation.last_message_at,
+          other_participant: otherParticipant || undefined
         };
 
         onConversationUpdate(formattedConversation);

@@ -8,6 +8,7 @@ import { RadarScreen } from './screens/RadarScreen';
 import { ProfileScreen } from './screens/ProfileScreen';
 import { CreatePostScreen } from './screens/CreatePostScreen';
 import { MessagesScreen } from './screens/MessagesScreen';
+import { EditProfileScreen } from './screens/EditProfileScreen';
 import { UserGroupIcon, Squares2X2Icon, UserIcon, PlusIcon, ChatBubbleLeftIcon } from '@heroicons/react/24/outline';
 import { User } from './types';
 import { supabase, onAuthStateChange, ensureSession } from './lib/supabase';
@@ -23,7 +24,8 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isClient, setIsClient] = useState(false);
-  const [hideBottomNav, setHideBottomNav] = useState(false); // New state for hiding bottom nav
+  const [hideBottomNav, setHideBottomNav] = useState(false);
+  const [editProfileSection, setEditProfileSection] = useState<string | undefined>(undefined);
 
   // Ensure we're on the client side before doing anything
   useEffect(() => {
@@ -45,7 +47,6 @@ export default function App() {
         handleSignOut();
       } else if (event === 'TOKEN_REFRESHED' && session) {
         console.log('Token refreshed successfully');
-        // Session is automatically updated by Supabase
       } else if (event === 'TOKEN_REFRESH_FAILED') {
         console.error('Token refresh failed');
         await handleRefreshTokenError();
@@ -64,7 +65,6 @@ export default function App() {
 
   const checkAuthStatus = async () => {
     try {
-      // Check if Supabase is available
       if (!supabase) {
         console.warn('Supabase not available, using offline mode');
         setCurrentScreen('welcome');
@@ -74,7 +74,6 @@ export default function App() {
 
       console.log('Checking authentication status...');
 
-      // Check if we have a valid session with network error handling
       const sessionResult = await ensureSession();
       
       if (!sessionResult.success) {
@@ -106,7 +105,6 @@ export default function App() {
         await handleAuthenticatedUser(user);
       } catch (networkError) {
         console.error('Network error during session check:', networkError);
-        // If there's a network error, fall back to welcome screen
         setCurrentScreen('welcome');
         setIsLoading(false);
         return;
@@ -124,7 +122,6 @@ export default function App() {
     try {
       console.log('Handling authenticated user:', user.id);
 
-      // Check if user has a profile with proper error handling
       try {
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
@@ -134,13 +131,11 @@ export default function App() {
 
         if (profileError) {
           if (profileError.code === 'PGRST116') {
-            // No profile found (not an error)
             console.log('No profile found, redirecting to profile setup');
             setCurrentScreen('profileSetup');
             return;
           } else {
             console.error('Profile fetch error:', profileError);
-            // For other database errors, still allow profile setup
             setCurrentScreen('profileSetup');
             return;
           }
@@ -156,7 +151,6 @@ export default function App() {
         setCurrentUser(profile);
         setIsLoggedIn(true);
 
-        // Check if profile has essential fields filled out
         const isProfileComplete = profile.name && 
                                  profile.bio && 
                                  profile.date_of_birth && 
@@ -170,8 +164,6 @@ export default function App() {
         }
       } catch (networkError) {
         console.error('Network error fetching profile:', networkError);
-        // If we can't fetch the profile due to network issues,
-        // redirect to profile setup where they can try again
         setCurrentScreen('profileSetup');
         return;
       }
@@ -184,16 +176,11 @@ export default function App() {
   const handleLogin = async () => {
     console.log('Login successful, checking user state...');
     setIsLoggedIn(true);
-    
-    // The auth state change listener will handle the rest
-    // Just wait a moment for the session to be established
     await new Promise(resolve => setTimeout(resolve, 500));
   };
 
   const handleProfileSetupComplete = (profileData: any) => {
     console.log('Profile setup completed:', profileData);
-    // Use the profile data directly from the setup screen
-    // This data already includes profile_completed: true
     setCurrentUser(profileData);
     setCurrentScreen('app');
   };
@@ -205,7 +192,7 @@ export default function App() {
     setActiveTab('radar');
     setSelectedUser(null);
     setSelectedChatUser(null);
-    setHideBottomNav(false); // Reset bottom nav visibility
+    setHideBottomNav(false);
   };
 
   const handleLogout = async () => {
@@ -216,20 +203,20 @@ export default function App() {
           console.error('Logout error:', error);
         }
       }
-      // handleSignOut will be called by the auth state listener
     } catch (error) {
       console.error('Logout error:', error);
-      // Force sign out anyway
       handleSignOut();
     }
   };
 
   const handleMessageUser = (user: User) => {
+    console.log('🔍 [App] handleMessageUser called with user:', user.id);
     setSelectedChatUser(user);
-    setHideBottomNav(true); // Hide bottom nav when entering chat
+    setHideBottomNav(true);
   };
 
   const handleViewProfile = (user: User) => {
+    console.log('🔍 [App] handleViewProfile called with user:', user.id);
     setSelectedUser(user);
     setActiveTab('profile');
   };
@@ -238,17 +225,36 @@ export default function App() {
     setActiveTab('create');
   };
 
-  // Handle navigation changes to show/hide bottom nav
-  const handleTabChange = (tab: string) => {
-    setActiveTab(tab);
-    setHideBottomNav(false); // Show bottom nav when changing tabs
-    setSelectedChatUser(null); // Clear selected chat user
+  const handleNavigateToEdit = (section?: string) => {
+    console.log('🔍 [App] handleNavigateToEdit called with section:', section);
+    setEditProfileSection(section);
+    setActiveTab('editProfile');
   };
 
-  // Handle back from chat
+  const handleTabChange = (tab: string) => {
+    console.log('🔍 [App] handleTabChange called with tab:', tab);
+    setActiveTab(tab);
+    setHideBottomNav(false);
+    setSelectedChatUser(null);
+    setSelectedUser(null);
+    setEditProfileSection(undefined);
+  };
+
   const handleBackFromChat = () => {
     setSelectedChatUser(null);
-    setHideBottomNav(false); // Show bottom nav when exiting chat
+    setHideBottomNav(false);
+  };
+
+  const handleBackFromEdit = () => {
+    setActiveTab('profile');
+    setEditProfileSection(undefined);
+  };
+
+  const handleSaveProfile = (updatedUser: any) => {
+    console.log('🔍 [App] handleSaveProfile called with:', updatedUser);
+    setCurrentUser(updatedUser);
+    setActiveTab('profile');
+    setEditProfileSection(undefined);
   };
 
   // Don't render anything until we're on the client
@@ -291,9 +297,7 @@ export default function App() {
   // Show main app after login and profile setup
   return (
     <div className="h-screen bg-black text-white overflow-hidden flex flex-col mobile-container">
-      {/* Mobile App Container */}
       <div className="flex-1 flex flex-col min-h-0">
-        {/* Main Content Area */}
         <main className="flex-1 overflow-hidden relative content-with-nav">
           <div className="h-full">
             {activeTab === 'radar' && (
@@ -301,7 +305,7 @@ export default function App() {
                 <RadarScreen 
                   userGender={userGender} 
                   onNavigate={handleTabChange}
-                  onViewProfile={setSelectedUser}
+                  onViewProfile={handleViewProfile}
                   onMessageUser={handleMessageUser}
                 />
               </div>
@@ -331,16 +335,29 @@ export default function App() {
                 <ProfileScreen 
                   user={selectedUser} 
                   currentUser={currentUser}
-                  onBack={() => setSelectedUser(null)}
+                  onBack={() => {
+                    setSelectedUser(null);
+                    setActiveTab('radar');
+                  }}
                   onLogout={handleLogout}
                   onNavigateToCreate={handleNavigateToCreate}
+                  onNavigateToEdit={handleNavigateToEdit}
+                />
+              </div>
+            )}
+            {activeTab === 'editProfile' && (
+              <div className="h-full overflow-y-auto mobile-scroll">
+                <EditProfileScreen
+                  user={currentUser}
+                  onBack={handleBackFromEdit}
+                  onSave={handleSaveProfile}
+                  initialSection={editProfileSection}
                 />
               </div>
             )}
           </div>
         </main>
 
-        {/* Bottom Navigation - Fixed for mobile - Hide when in chat */}
         {!hideBottomNav && (
           <nav className="bg-gray-900 border-t border-gray-800 flex-shrink-0 bottom-nav">
             <div className="flex justify-around items-center py-2 px-4 h-16">
