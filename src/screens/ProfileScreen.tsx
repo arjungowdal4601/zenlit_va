@@ -13,6 +13,7 @@ interface Props {
   onBack?: () => void;
   onLogout?: () => void;
   onNavigateToCreate?: () => void;
+  onNavigateToEdit?: (section?: string) => void; // New prop for edit navigation
 }
 
 export const ProfileScreen: React.FC<Props> = ({ 
@@ -20,7 +21,8 @@ export const ProfileScreen: React.FC<Props> = ({
   currentUser, 
   onBack, 
   onLogout, 
-  onNavigateToCreate 
+  onNavigateToCreate,
+  onNavigateToEdit
 }) => {
   const [showPostsGallery, setShowPostsGallery] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
@@ -128,9 +130,13 @@ export const ProfileScreen: React.FC<Props> = ({
     setShowPostsGallery(false);
   };
 
-  const handleEditProfile = () => {
+  const handleEditProfile = (section?: string) => {
     setShowSettingsMenu(false);
-    setShowEditProfile(true);
+    if (onNavigateToEdit) {
+      onNavigateToEdit(section);
+    } else {
+      setShowEditProfile(true);
+    }
   };
 
   const handleBackFromEdit = () => {
@@ -201,17 +207,25 @@ export const ProfileScreen: React.FC<Props> = ({
     return !!(url && url.trim() !== '' && url !== '#');
   };
 
+  // Handle social icon click for own profile
+  const handleSocialIconClick = (platform: string, url?: string) => {
+    if (isCurrentUser && !isValidUrl(url)) {
+      // Navigate to edit profile with specific section
+      handleEditProfile(platform);
+    }
+  };
+
   // Get social links based on profile type
   const getSocialLinks = () => {
     const links = [
-      { url: profileData?.twitter_url, Icon: IconBrandX, title: 'X (Twitter)' },
-      { url: profileData?.instagram_url, Icon: IconBrandInstagram, title: 'Instagram' },
-      { url: profileData?.linked_in_url, Icon: IconBrandLinkedin, title: 'LinkedIn' }
+      { url: profileData?.twitter_url, Icon: IconBrandX, title: 'X (Twitter)', platform: 'twitter' },
+      { url: profileData?.instagram_url, Icon: IconBrandInstagram, title: 'Instagram', platform: 'instagram' },
+      { url: profileData?.linked_in_url, Icon: IconBrandLinkedin, title: 'LinkedIn', platform: 'linkedin' }
     ];
 
     if (isCurrentUser) {
-      // For own profile: show all icons, green if active, grey if inactive
-      return links.map(({ url, Icon, title }) => {
+      // For own profile: show all icons, green if active, grey if inactive and clickable
+      return links.map(({ url, Icon, title, platform }) => {
         const isActive = isValidUrl(url);
         return (
           <div key={title} className="relative">
@@ -226,12 +240,13 @@ export const ProfileScreen: React.FC<Props> = ({
                 <Icon size={24} />
               </a>
             ) : (
-              <div
-                className="p-3 bg-gray-800 rounded-full text-gray-400 cursor-default pointer-events-none"
-                title="Not added"
+              <button
+                onClick={() => handleSocialIconClick(platform, url)}
+                className="p-3 bg-gray-800 rounded-full text-gray-400 hover:text-gray-300 hover:bg-gray-700 transition-all active:scale-95 cursor-pointer"
+                title={`Add ${title}`}
               >
                 <Icon size={24} />
-              </div>
+              </button>
             )}
           </div>
         );
@@ -333,7 +348,7 @@ export const ProfileScreen: React.FC<Props> = ({
                 {showSettingsMenu && (
                   <div className="absolute right-0 top-full mt-2 w-48 bg-gray-900 border border-gray-700 rounded-lg shadow-xl overflow-hidden z-50">
                     <button
-                      onClick={handleEditProfile}
+                      onClick={() => handleEditProfile()}
                       className="w-full flex items-center px-4 py-3 text-left text-white hover:bg-gray-800 active:bg-gray-700 transition-colors"
                     >
                       <UserIcon className="w-5 h-5 mr-3 text-gray-400" />

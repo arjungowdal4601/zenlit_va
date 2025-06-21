@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { User, SocialProvider } from '../../types';
 import { SocialLinkModal } from './SocialLinkModal';
 import { 
@@ -13,9 +13,10 @@ import { transformProfileToUser } from '../../../lib/utils';
 interface Props {
   user: User;
   onUserUpdate: (updatedUser: User) => void;
+  highlightedPlatform?: string; // New prop for highlighting specific platform
 }
 
-export const SocialAccountsSection: React.FC<Props> = ({ user, onUserUpdate }) => {
+export const SocialAccountsSection: React.FC<Props> = ({ user, onUserUpdate, highlightedPlatform }) => {
   const [activeModal, setActiveModal] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -24,8 +25,19 @@ export const SocialAccountsSection: React.FC<Props> = ({ user, onUserUpdate }) =
     name: user.name,
     instagramUrl: user.instagramUrl,
     linkedInUrl: user.linkedInUrl,
-    twitterUrl: user.twitterUrl
+    twitterUrl: user.twitterUrl,
+    highlightedPlatform
   });
+
+  // Auto-open modal for highlighted platform
+  useEffect(() => {
+    if (highlightedPlatform && ['instagram', 'linkedin', 'twitter'].includes(highlightedPlatform)) {
+      // Small delay to ensure component is fully rendered
+      setTimeout(() => {
+        setActiveModal(highlightedPlatform);
+      }, 300);
+    }
+  }, [highlightedPlatform]);
 
   const socialProviders: (SocialProvider & { 
     placeholder: string;
@@ -39,7 +51,7 @@ export const SocialAccountsSection: React.FC<Props> = ({ user, onUserUpdate }) =
       icon: IconBrandInstagram,
       placeholder: 'https://instagram.com/yourusername',
       getCurrentUrl: () => user.instagramUrl,
-      getIsVerified: () => !!user.instagramUrl // Changed from instagramVerified to just check if URL exists
+      getIsVerified: () => !!user.instagramUrl
     },
     {
       id: 'linkedin',
@@ -48,7 +60,7 @@ export const SocialAccountsSection: React.FC<Props> = ({ user, onUserUpdate }) =
       icon: IconBrandLinkedin,
       placeholder: 'https://linkedin.com/in/yourprofile',
       getCurrentUrl: () => user.linkedInUrl,
-      getIsVerified: () => !!user.linkedInUrl // Changed from linkedInVerified to just check if URL exists
+      getIsVerified: () => !!user.linkedInUrl
     },
     {
       id: 'twitter',
@@ -57,7 +69,7 @@ export const SocialAccountsSection: React.FC<Props> = ({ user, onUserUpdate }) =
       icon: IconBrandX,
       placeholder: 'https://twitter.com/yourusername',
       getCurrentUrl: () => user.twitterUrl,
-      getIsVerified: () => !!user.twitterUrl // Changed from twitterVerified to just check if URL exists
+      getIsVerified: () => !!user.twitterUrl
     }
   ];
 
@@ -128,12 +140,17 @@ export const SocialAccountsSection: React.FC<Props> = ({ user, onUserUpdate }) =
           const currentUrl = provider.getCurrentUrl();
           const isConnected = !!currentUrl;
           const IconComponent = provider.icon;
+          const isHighlighted = highlightedPlatform === provider.id;
 
-          console.log(`🔍 [SocialAccountsSection] Rendering ${provider.id} - currentUrl: "${currentUrl}", isConnected: ${isConnected}`);
+          console.log(`🔍 [SocialAccountsSection] Rendering ${provider.id} - currentUrl: "${currentUrl}", isConnected: ${isConnected}, isHighlighted: ${isHighlighted}`);
 
           return (
             <div key={provider.id} className="space-y-2">
-              <div className="flex items-center justify-between p-4 bg-gray-800 border border-gray-600 rounded-lg">
+              <div className={`flex items-center justify-between p-4 border rounded-lg transition-all ${
+                isHighlighted 
+                  ? 'bg-blue-900/30 border-blue-500 ring-2 ring-blue-500/50' 
+                  : 'bg-gray-800 border-gray-600'
+              }`}>
                 <div className="flex items-center space-x-3">
                   <IconComponent size={24} className="text-gray-300" />
                   <div className="min-w-0 flex-1">

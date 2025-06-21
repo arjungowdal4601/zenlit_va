@@ -12,9 +12,10 @@ interface Props {
   user: User;
   onBack: () => void;
   onSave: (updatedUser: User) => void;
+  initialSection?: string; // New prop for deep linking to specific sections
 }
 
-export const EditProfileScreen: React.FC<Props> = ({ user, onBack, onSave }) => {
+export const EditProfileScreen: React.FC<Props> = ({ user, onBack, onSave, initialSection }) => {
   const [formData, setFormData] = useState({
     name: user.name,
     bio: user.bio,
@@ -29,16 +30,19 @@ export const EditProfileScreen: React.FC<Props> = ({ user, onBack, onSave }) => 
   const [loading, setLoading] = useState<boolean>(false);
   const [showSuccess, setShowSuccess] = useState<boolean>(false);
   const [hasChanges, setHasChanges] = useState<boolean>(false);
+  const [activeSection, setActiveSection] = useState<string>('basic'); // Track active section
 
   const profileFileInputRef = useRef<HTMLInputElement>(null);
   const coverFileInputRef = useRef<HTMLInputElement>(null);
+  const socialSectionRef = useRef<HTMLDivElement>(null);
 
   console.log(`🔍 [EditProfileScreen] Component initialized with user:`, {
     id: user.id,
     name: user.name,
     instagramUrl: user.instagramUrl,
     linkedInUrl: user.linkedInUrl,
-    twitterUrl: user.twitterUrl
+    twitterUrl: user.twitterUrl,
+    initialSection
   });
 
   console.log(`🔍 [EditProfileScreen] Initial formData:`, formData);
@@ -64,6 +68,19 @@ export const EditProfileScreen: React.FC<Props> = ({ user, onBack, onSave }) => 
       }
     })();
   }, []);
+
+  // Handle initial section navigation
+  useEffect(() => {
+    if (initialSection) {
+      if (['instagram', 'linkedin', 'twitter'].includes(initialSection)) {
+        setActiveSection('social');
+        // Scroll to social section after a brief delay
+        setTimeout(() => {
+          socialSectionRef.current?.scrollIntoView({ behavior: 'smooth' });
+        }, 100);
+      }
+    }
+  }, [initialSection]);
 
   const handleInputChange = (field: string, value: string) => {
     console.log(`🔍 [EditProfileScreen] handleInputChange - field: ${field}, value: "${value}"`);
@@ -331,6 +348,32 @@ export const EditProfileScreen: React.FC<Props> = ({ user, onBack, onSave }) => 
         </button>
       </div>
 
+      {/* Section Navigation */}
+      <div className="px-4 py-3 bg-gray-900/50 border-b border-gray-800">
+        <div className="flex gap-4">
+          <button
+            onClick={() => setActiveSection('basic')}
+            className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+              activeSection === 'basic' 
+                ? 'bg-blue-600 text-white' 
+                : 'text-gray-400 hover:text-white hover:bg-gray-800'
+            }`}
+          >
+            Basic Info
+          </button>
+          <button
+            onClick={() => setActiveSection('social')}
+            className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+              activeSection === 'social' 
+                ? 'bg-blue-600 text-white' 
+                : 'text-gray-400 hover:text-white hover:bg-gray-800'
+            }`}
+          >
+            Social Links
+          </button>
+        </div>
+      </div>
+
       {/* Cover Photo Section */}
       <div className="relative h-48 bg-gray-800">
         {coverUrl ? (
@@ -405,39 +448,51 @@ export const EditProfileScreen: React.FC<Props> = ({ user, onBack, onSave }) => 
 
       {/* Form Content */}
       <div className="px-4 space-y-8 pb-8">
-        <div className="space-y-4">
-          <h2 className="text-lg font-semibold text-white">Basic Information</h2>
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              Display Name
-            </label>
-            <input
-              type="text"
-              value={formData.name}
-              onChange={(e) => handleInputChange('name', e.target.value)}
-              className="w-full px-4 py-3 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="Your display name"
-              maxLength={50}
+        {/* Basic Information Section */}
+        {activeSection === 'basic' && (
+          <div className="space-y-4">
+            <h2 className="text-lg font-semibold text-white">Basic Information</h2>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Display Name
+              </label>
+              <input
+                type="text"
+                value={formData.name}
+                onChange={(e) => handleInputChange('name', e.target.value)}
+                className="w-full px-4 py-3 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Your display name"
+                maxLength={50}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Bio
+              </label>
+              <textarea
+                value={formData.bio}
+                onChange={e => handleInputChange('bio', e.target.value)}
+                className="w-full h-24 p-3 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                placeholder="Tell people about yourself…"
+                maxLength={150}
+              />
+              <p className="text-xs text-gray-400 text-right mt-1">{formData.bio.length}/150</p>
+            </div>
+          </div>
+        )}
+
+        {/* Social Links Section */}
+        {activeSection === 'social' && (
+          <div ref={socialSectionRef}>
+            <SocialAccountsSection 
+              user={{ ...user, ...formData }} 
+              onUserUpdate={handleUserUpdate}
+              highlightedPlatform={initialSection} // Pass the initial section for highlighting
             />
           </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              Bio
-            </label>
-            <textarea
-              value={formData.bio}
-              onChange={e => handleInputChange('bio', e.target.value)}
-              className="w-full h-24 p-3 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-              placeholder="Tell people about yourself…"
-              maxLength={150}
-            />
-            <p className="text-xs text-gray-400 text-right mt-1">{formData.bio.length}/150</p>
-          </div>
-        </div>
-
-        <SocialAccountsSection user={{ ...user, ...formData }} onUserUpdate={handleUserUpdate} />
+        )}
       </div>
 
       {/* Hidden file inputs */}

@@ -28,8 +28,18 @@ export const ChatWindow = ({
   const [optimisticMessages, setOptimisticMessages] = useState<MessageWithSender[]>([]);
   const otherParticipant = conversation.other_participant;
 
-  // Combine real messages with optimistic messages
-  const allMessages = [...messages, ...optimisticMessages];
+  // Combine real messages with optimistic messages, removing duplicates
+  const allMessages = [...messages, ...optimisticMessages].filter((message, index, arr) => {
+    // Remove optimistic messages that have been confirmed by real messages
+    if (message.id.startsWith('optimistic-')) {
+      return !messages.some(realMsg => 
+        realMsg.content === message.content && 
+        realMsg.senderId === message.senderId &&
+        Math.abs(new Date(realMsg.timestamp).getTime() - new Date(message.timestamp).getTime()) < 10000
+      );
+    }
+    return true;
+  });
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -40,24 +50,27 @@ export const ChatWindow = ({
     scrollToBottom();
   }, [allMessages]);
 
-  // Clear optimistic messages when real messages update
+  // Clear confirmed optimistic messages when real messages update
   useEffect(() => {
     if (messages.length > 0) {
-      // Remove optimistic messages that have been confirmed
       setOptimisticMessages(prev => 
         prev.filter(optimistic => 
-          !messages.some(real => real.content === optimistic.content && 
-                                 real.senderId === optimistic.senderId &&
-                                 Math.abs(new Date(real.timestamp).getTime() - new Date(optimistic.timestamp).getTime()) < 5000)
+          !messages.some(real => 
+            real.content === optimistic.content && 
+            real.senderId === optimistic.senderId &&
+            Math.abs(new Date(real.timestamp).getTime() - new Date(optimistic.timestamp).getTime()) < 10000
+          )
         )
       );
     }
   }, [messages]);
 
   const handleSendMessage = async (content: string) => {
-    // Optimistic rendering - show message immediately
+    console.log('🔍 [ChatWindow] Sending message with optimistic rendering');
+    
+    // Create optimistic message for immediate UI feedback
     const optimisticMessage: MessageWithSender = {
-      id: `optimistic-${Date.now()}`,
+      id: `optimistic-${Date.now()}-${Math.random()}`,
       senderId: currentUserId,
       receiverId: otherParticipant?.id || '',
       content,
@@ -70,17 +83,18 @@ export const ChatWindow = ({
       }
     };
 
+    // Add optimistic message to UI immediately
     setOptimisticMessages(prev => [...prev, optimisticMessage]);
     
     // Send the actual message
     onSendMessage(content);
 
-    // Remove optimistic message after 10 seconds if not confirmed
+    // Remove optimistic message after 15 seconds if not confirmed
     setTimeout(() => {
       setOptimisticMessages(prev => 
         prev.filter(msg => msg.id !== optimisticMessage.id)
       );
-    }, 10000);
+    }, 15000);
   };
 
   const handleProfileClick = () => {
@@ -168,7 +182,7 @@ export const ChatWindow = ({
           </div>
         ) : (
           <>
-            {allMessages.map((message, index) => (
+            {allMessages.map((message) => (
               <MessageBubble
                 key={message.id}
                 message={message}
