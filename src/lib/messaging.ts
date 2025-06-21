@@ -135,13 +135,13 @@ export const getUserConversations = async (
       };
     }
 
+    // First, get conversations with participant info
     const { data: conversations, error } = await supabase
       .from('conversations')
       .select(`
         *,
         participant_1:participant_1_id(id, name, username, profile_photo_url),
-        participant_2:participant_2_id(id, name, username, profile_photo_url),
-        latest_message:messages(content, created_at, sender_id)
+        participant_2:participant_2_id(id, name, username, profile_photo_url)
       `)
       .or(`participant_1_id.eq.${userId},participant_2_id.eq.${userId}`)
       .order('last_message_at', { ascending: false });
@@ -156,17 +156,31 @@ export const getUserConversations = async (
       };
     }
 
-    // Format conversations with other participant info
-    const formattedConversations: Conversation[] = (conversations || []).map(conv => {
+    // For each conversation, get the latest message separately
+    const formattedConversations: Conversation[] = [];
+    
+    for (const conv of conversations || []) {
       const otherParticipant = conv.participant_1_id === userId 
         ? conv.participant_2 
         : conv.participant_1;
 
-      const latestMessage = conv.latest_message && conv.latest_message.length > 0 
-        ? conv.latest_message[0] 
+      // Get the latest message for this conversation
+      const { data: latestMessages, error: messageError } = await supabase
+        .from('messages')
+        .select('content, created_at, sender_id')
+        .eq('conversation_id', conv.id)
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (messageError) {
+        console.error('🔍 [getUserConversations] Error fetching latest message for conversation:', conv.id, messageError);
+      }
+
+      const latestMessage = latestMessages && latestMessages.length > 0 
+        ? latestMessages[0] 
         : undefined;
 
-      return {
+      formattedConversations.push({
         id: conv.id,
         participant_1_id: conv.participant_1_id,
         participant_2_id: conv.participant_2_id,
@@ -175,8 +189,8 @@ export const getUserConversations = async (
         last_message_at: conv.last_message_at,
         other_participant: otherParticipant,
         latest_message: latestMessage
-      };
-    });
+      });
+    }
 
     console.log('🔍 [getUserConversations] Formatted conversations:', formattedConversations);
 
