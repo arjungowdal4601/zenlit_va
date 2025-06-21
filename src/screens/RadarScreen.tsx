@@ -47,9 +47,8 @@ export const RadarScreen: React.FC<Props> = ({
   const [isLocationTracking, setIsLocationTracking] = useState(false);
   const [lastLocationUpdate, setLastLocationUpdate] = useState<number>(0);
   const [isUpdatingUsers, setIsUpdatingUsers] = useState(false);
-  const [isVisible, setIsVisible] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [hideFromRadar, setHideFromRadar] = useState(false); // New state for radar visibility toggle
+  const [hideFromRadar, setHideFromRadar] = useState(false);
 
   // Refs for cleanup
   const locationWatchId = useRef<number | null>(null);
@@ -108,7 +107,7 @@ export const RadarScreen: React.FC<Props> = ({
       });
 
       setCurrentUser(profile);
-      setHideFromRadar(profile.hide_from_radar || false); // Set initial radar visibility state
+      setHideFromRadar(profile.hide_from_radar || false);
 
       // Check if user already has location data
       if (profile.latitude && profile.longitude) {
@@ -120,9 +119,8 @@ export const RadarScreen: React.FC<Props> = ({
         };
         setCurrentLocation(userLocation);
         setLocationPermission({ granted: true, denied: false, pending: false });
-        if (isVisible) {
-          await loadNearbyUsers(user.id, userLocation);
-        }
+        // Always load nearby users since radar is always on
+        await loadNearbyUsers(user.id, userLocation);
         
         // Start location tracking for dynamic updates
         startLocationTracking(user.id);
@@ -242,9 +240,7 @@ export const RadarScreen: React.FC<Props> = ({
           // Check if location bucket has changed (rounded coordinates)
           if (prevLocation && hasLocationChanged(prevLocation, newLocation)) {
             console.log('Location bucket changed, updating users');
-            if (isVisible) {
-              debouncedUpdateUsers(newLocation);
-            }
+            debouncedUpdateUsers(newLocation);
           }
           
           return newLocation;
@@ -287,10 +283,8 @@ export const RadarScreen: React.FC<Props> = ({
         setShowLocationModal(false);
         setLastLocationUpdate(Date.now());
         
-        // Load users with exact coordinate match if visible
-        if (isVisible) {
-          await loadNearbyUsers(currentUser.id, result.location);
-        }
+        // Load users with exact coordinate match (always on)
+        await loadNearbyUsers(currentUser.id, result.location);
         
         // Start location tracking for dynamic updates
         startLocationTracking(currentUser.id);
@@ -419,7 +413,6 @@ export const RadarScreen: React.FC<Props> = ({
   useEffect(() => {
     const interval = setInterval(() => {
       if (
-        isVisible &&
         currentUser &&
         currentLocation &&
         !isRefreshing &&
@@ -430,38 +423,7 @@ export const RadarScreen: React.FC<Props> = ({
     }, 10000); // check every 10 seconds
 
     return () => clearInterval(interval);
-  }, [isVisible, currentUser, currentLocation, lastLocationUpdate, isRefreshing]);
-
-  // When visibility is turned on, request location permission if needed
-  useEffect(() => {
-    if (!isVisible) return;
-
-    const requestAndLoad = async () => {
-      const permission = await checkLocationPermission();
-      setLocationPermission(permission);
-
-      if (!permission.granted) {
-        try {
-          await new Promise<void>((resolve, reject) =>
-            navigator.geolocation.getCurrentPosition(() => resolve(), reject)
-          );
-          setLocationPermission({ granted: true, denied: false, pending: false });
-        } catch {
-          setLocationPermission({ granted: false, denied: true, pending: false });
-          return;
-        }
-      }
-
-      if (currentUser && currentLocation) {
-        await loadNearbyUsers(currentUser.id, currentLocation);
-      } else if (currentUser && !currentLocation) {
-        await handleRequestLocation();
-      }
-    };
-
-    requestAndLoad();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isVisible]);
+  }, [currentUser, currentLocation, lastLocationUpdate, isRefreshing]);
 
   if (isLoading) {
     return (
@@ -514,22 +476,14 @@ export const RadarScreen: React.FC<Props> = ({
               </div>
             </div>
             
-            {/* Right side - Show Nearby Toggle */}
+            {/* Right side - Refresh Button */}
             <div className="flex flex-col items-end gap-1 ml-4">
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-400">Show Nearby</span>
-                <input
-                  type="checkbox"
-                  className="relative w-10 h-5 rounded-full appearance-none bg-gray-700 checked:bg-blue-600 transition-colors cursor-pointer before:absolute before:left-1 before:top-1 before:w-3 before:h-3 before:bg-white before:rounded-full before:transition-transform checked:before:translate-x-5"
-                  checked={isVisible}
-                  onChange={(e) => setIsVisible(e.target.checked)}
-                />
-              </div>
               <button
                 onClick={handleRefresh}
-                className="flex items-center gap-1 text-xs text-gray-400 hover:text-white"
+                disabled={isRefreshing || !currentLocation}
+                className="flex items-center gap-1 text-xs text-gray-400 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                <ArrowPathIcon className="w-4 h-4" />
+                <ArrowPathIcon className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
                 Refresh
               </button>
             </div>
@@ -635,47 +589,41 @@ export const RadarScreen: React.FC<Props> = ({
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
       >
-        {isVisible ? (
-          currentLocation ? (
-            users.length > 0 ? (
-              users.map((user) => (
-                <RadarUserCard
-                  key={user.id}
-                  user={user}
-                  onMessage={handleMessage}
-                  onViewProfile={() => handleViewProfile(user)}
-                />
-              ))
-            ) : (
-              <div className="text-center py-12">
-                <div className="w-16 h-16 bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <MapPinIcon className="w-8 h-8 text-gray-400" />
-                </div>
-                <p className="text-gray-500 text-sm">
-                  Move around or check back later to find people nearby!
-                </p>
-              </div>
-            )
+        {currentLocation ? (
+          users.length > 0 ? (
+            users.map((user) => (
+              <RadarUserCard
+                key={user.id}
+                user={user}
+                onMessage={handleMessage}
+                onViewProfile={() => handleViewProfile(user)}
+              />
+            ))
           ) : (
             <div className="text-center py-12">
               <div className="w-16 h-16 bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
-                <ExclamationTriangleIcon className="w-8 h-8 text-gray-400" />
+                <MapPinIcon className="w-8 h-8 text-gray-400" />
               </div>
-              <p className="text-gray-400 mb-2">Location Access Required</p>
-              <p className="text-gray-500 text-sm mb-4">
-                We need your location to find people nearby
+              <p className="text-gray-500 text-sm">
+                Move around or check back later to find people nearby!
               </p>
-              <button
-                onClick={handleEnablePreciseLocation}
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 active:scale-95 transition-all"
-              >
-                Enable Location
-              </button>
             </div>
           )
         ) : (
           <div className="text-center py-12">
-            <p className="text-gray-400">Toggle &quot;Show Nearby&quot; to see people around you</p>
+            <div className="w-16 h-16 bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
+              <ExclamationTriangleIcon className="w-8 h-8 text-gray-400" />
+            </div>
+            <p className="text-gray-400 mb-2">Location Access Required</p>
+            <p className="text-gray-500 text-sm mb-4">
+              We need your location to find people nearby
+            </p>
+            <button
+              onClick={handleEnablePreciseLocation}
+              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 active:scale-95 transition-all"
+            >
+              Enable Location
+            </button>
           </div>
         )}
       </div>
