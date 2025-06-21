@@ -18,7 +18,7 @@ export const WelcomeScreen: React.FC<Props> = ({ onGetStarted }) => {
         {/* Logo */}
         <div className="mb-12">
           <img
-            src="/images/zenlit-logo.png"
+            src="https://udixrkvcyrxmmrbadhpj.supabase.co/storage/v1/object/public/app-images//Picture1.png"
             alt="Zenlit"
             className="w-32 h-32 mx-auto object-contain rounded-lg mb-8"
           />

@@ -325,7 +325,7 @@ export const PasswordResetScreen: React.FC<Props> = ({ onBack }) => {
             </button>
             <div className="flex items-center">
               <img
-                src="/images/zenlit-logo.png"
+                src="https://udixrkvcyrxmmrbadhpj.supabase.co/storage/v1/object/public/app-images//Picture1.png"
                 alt="Zenlit"
                 className="w-8 h-8 object-contain rounded mr-3"
               />
