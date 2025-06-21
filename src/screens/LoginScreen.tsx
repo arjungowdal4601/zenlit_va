@@ -26,6 +26,14 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
   const [error, setError] = useState<string | null>(null);
   const [otpCountdown, setOtpCountdown] = useState(0);
 
+  // Debug logging to see current state
+  console.log('🔍 DEBUG: Current state:', {
+    currentView,
+    signupStep,
+    isLoading,
+    error
+  });
+
   // Countdown timer effect for OTP resend
   useEffect(() => {
     let timer: NodeJS.Timeout;
@@ -140,13 +148,14 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
     setIsLoading(true);
 
     try {
-      console.log('Verifying OTP for:', formData.email);
+      console.log('🔍 DEBUG: Verifying OTP for:', formData.email);
       const result = await verifySignupOTP(formData.email, formData.otp);
       
       if (result.success) {
-        console.log('OTP verified successfully, user authenticated');
-        // Move to password creation step
+        console.log('🔍 DEBUG: OTP verified successfully, moving to password step');
+        // CRITICAL: Move to password creation step
         setSignupStep('password');
+        console.log('🔍 DEBUG: signupStep should now be "password"');
       } else {
         console.error('OTP verification failed:', result.error);
         setError(result.error || 'Invalid verification code');
@@ -163,6 +172,8 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
   const handleSetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
+    console.log('🔍 DEBUG: handleSetPassword called');
 
     if (!formData.password || !formData.confirmPassword) {
       setError('Please fill in all password fields');
@@ -327,6 +338,11 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
                  signupStep === 'password' ? 'Choose a secure password for your account' :
                  'Welcome to Zenlit!'}
               </p>
+            </div>
+
+            {/* Debug info - REMOVE THIS AFTER TESTING */}
+            <div className="mb-4 p-2 bg-blue-900/20 border border-blue-700 rounded text-xs text-blue-300">
+              DEBUG: currentView={currentView}, signupStep={signupStep}
             </div>
 
             {/* Error Message */}
@@ -599,8 +615,8 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
               </>
             )}
 
-            {/* Toggle between login/signup */}
-            {(currentView === 'login' || signupStep === 'email') && (
+            {/* Toggle between login/signup - Only show for login or email step */}
+            {(currentView === 'login' || (currentView === 'signup' && signupStep === 'email')) && (
               <div className="mt-6 text-center">
                 <p className="text-gray-400">
                   {currentView === 'login' ? "Don't have an account? " : "Already have an account? "}
@@ -615,8 +631,8 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
             )}
           </div>
 
-          {/* Terms and Privacy */}
-          {(currentView === 'login' || signupStep === 'email') && (
+          {/* Terms and Privacy - Only show for login or email step */}
+          {(currentView === 'login' || (currentView === 'signup' && signupStep === 'email')) && (
             <div className="mt-6 text-center pb-8">
               <p className="text-xs text-gray-500">
                 By continuing, you agree to our{' '}
