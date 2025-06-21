@@ -1,3 +1,4 @@
+```tsx
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { RadarUserCard } from '../components/radar/RadarUserCard';
 import { LocationPermissionModal } from '../components/radar/LocationPermissionModal';
@@ -614,7 +615,7 @@ export const RadarScreen: React.FC<Props> = ({
               <p className="text-xs text-gray-400">
                 {hideFromRadar 
                   ? 'Others cannot see you on their radar' 
-                  : 'Others can see you when you&apos;re nearby'
+                  : 'Others can see you when you are nearby'
                 }
               </p>
             </div>
@@ -733,3 +734,4 @@ export const RadarScreen: React.FC<Props> = ({
     </div>
   );
 };
+```

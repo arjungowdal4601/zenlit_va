@@ -1,3 +1,4 @@
+```tsx
 'use client'
 import { useState, useEffect } from 'react';
 import { WelcomeScreen } from './screens/WelcomeScreen';
@@ -46,10 +47,11 @@ export default function App() {
       const url = new URL(window.location.href);
       const type = url.searchParams.get('type');
       const accessToken = url.searchParams.get('access_token');
+      const refreshToken = url.searchParams.get('refresh_token');
 
-      console.log('🔍 Checking for password reset flow:', { type, hasAccessToken: !!accessToken });
+      console.log('🔍 Checking for password reset flow:', { type, hasAccessToken: !!accessToken, hasRefreshToken: !!refreshToken });
 
-      if (type === 'recovery' && accessToken) {
+      if (type === 'recovery' && accessToken && refreshToken) {
         console.log('🔄 Password reset recovery flow detected, setting flag and showing password reset screen');
         setIsPasswordResetFlow(true);
         setCurrentScreen('passwordReset');
@@ -252,7 +254,11 @@ export default function App() {
     setCurrentScreen('login');
     
     // Clear URL parameters
-    window.history.replaceState({}, document.title, window.location.pathname);
+    try {
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } catch (error) {
+      console.error('Error clearing URL parameters:', error);
+    }
   };
 
   const handleMessageUser = (user: User) => {
@@ -468,3 +474,4 @@ export default function App() {
     </div>
   );
 }
+```
