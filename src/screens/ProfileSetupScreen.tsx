@@ -21,7 +21,7 @@ export const ProfileSetupScreen: React.FC<Props> = ({ onComplete, onBack }) => {
     displayName: '',
     username: '',
     dateOfBirth: '',
-    gender: '' as 'male' | 'female' | '',
+    gender: null as 'male' | 'female' | null, // Fixed: Changed from empty string to null
     profilePhoto: null as string | null,
     bio: ''
   });
@@ -64,7 +64,7 @@ export const ProfileSetupScreen: React.FC<Props> = ({ onComplete, onBack }) => {
            profileData.username.trim() &&
            isUsernameValid &&
            profileData.dateOfBirth && 
-           profileData.gender;
+           profileData.gender; // This will now check for non-null value
   };
 
   const handleNext = () => {
@@ -88,6 +88,13 @@ export const ProfileSetupScreen: React.FC<Props> = ({ onComplete, onBack }) => {
   const handleComplete = async () => {
     if (!profileData.bio.trim()) {
       alert('Please add a bio to complete your profile');
+      return;
+    }
+
+    // Validate that gender is selected
+    if (!profileData.gender) {
+      alert('Please select your gender');
+      setStep('basic');
       return;
     }
 
@@ -155,7 +162,7 @@ export const ProfileSetupScreen: React.FC<Props> = ({ onComplete, onBack }) => {
         username: profileData.username,
         bio: profileData.bio,
         dateOfBirth: profileData.dateOfBirth,
-        gender: profileData.gender,
+        gender: profileData.gender, // Now guaranteed to be 'male' | 'female'
         profilePhotoUrl: profilePhotoUrl || undefined
       });
 
