@@ -27,42 +27,12 @@ export default function App() {
   const [isClient, setIsClient] = useState(false);
   const [hideBottomNav, setHideBottomNav] = useState(false);
   const [editProfileSection, setEditProfileSection] = useState<string | undefined>(undefined);
+  const [isPasswordResetFlow, setIsPasswordResetFlow] = useState(false);
 
   // Ensure we're on the client side before doing anything
   useEffect(() => {
     setIsClient(true);
   }, []);
-
-  // Set up auth state listener
-  useEffect(() => {
-    if (!isClient) return;
-
-    const { data: { subscription } } = onAuthStateChange(async (event, session) => {
-      console.log('Auth state change:', event, session?.user?.id);
-      
-      if (event === 'SIGNED_IN' && session) {
-        console.log('User signed in, checking profile...');
-        await handleAuthenticatedUser(session.user);
-      } else if (event === 'SIGNED_OUT') {
-        console.log('User signed out');
-        handleSignOut();
-      } else if (event === 'TOKEN_REFRESHED' && session) {
-        console.log('Token refreshed successfully');
-      } else if (event === 'TOKEN_REFRESH_FAILED') {
-        console.error('Token refresh failed');
-        await handleRefreshTokenError();
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, [isClient]);
-
-  // Check authentication status on app load
-  useEffect(() => {
-    if (isClient) {
-      checkAuthStatus();
-    }
-  }, [isClient]);
 
   // Check for password reset recovery flow on app load
   useEffect(() => {
@@ -80,7 +50,8 @@ export default function App() {
       console.log('🔍 Checking for password reset flow:', { type, hasAccessToken: !!accessToken });
 
       if (type === 'recovery' && accessToken) {
-        console.log('🔄 Password reset recovery flow detected, showing password reset screen');
+        console.log('🔄 Password reset recovery flow detected, setting flag and showing password reset screen');
+        setIsPasswordResetFlow(true);
         setCurrentScreen('passwordReset');
         setIsLoading(false);
         return true;
@@ -91,13 +62,45 @@ export default function App() {
     return false;
   };
 
-  const checkAuthStatus = async () => {
-    try {
-      // First check if this is a password reset flow
-      if (checkForPasswordResetFlow()) {
+  // Set up auth state listener
+  useEffect(() => {
+    if (!isClient) return;
+
+    const { data: { subscription } } = onAuthStateChange(async (event, session) => {
+      console.log('Auth state change:', event, session?.user?.id, 'isPasswordResetFlow:', isPasswordResetFlow);
+      
+      // Don't process auth changes during password reset flow
+      if (isPasswordResetFlow) {
+        console.log('🔄 Ignoring auth state change during password reset flow');
         return;
       }
+      
+      if (event === 'SIGNED_IN' && session) {
+        console.log('User signed in, checking profile...');
+        await handleAuthenticatedUser(session.user);
+      } else if (event === 'SIGNED_OUT') {
+        console.log('User signed out');
+        handleSignOut();
+      } else if (event === 'TOKEN_REFRESHED' && session) {
+        console.log('Token refreshed successfully');
+      } else if (event === 'TOKEN_REFRESH_FAILED') {
+        console.error('Token refresh failed');
+        await handleRefreshTokenError();
+      }
+    });
 
+    return () => subscription.unsubscribe();
+  }, [isClient, isPasswordResetFlow]);
+
+  // Check authentication status on app load
+  useEffect(() => {
+    if (isClient && !isPasswordResetFlow) {
+      checkAuthStatus();
+    }
+  }, [isClient, isPasswordResetFlow]);
+
+  const checkAuthStatus = async () => {
+    try {
       if (!supabase) {
         console.warn('Supabase not available, using offline mode');
         setCurrentScreen('welcome');
@@ -226,6 +229,7 @@ export default function App() {
     setSelectedUser(null);
     setSelectedChatUser(null);
     setHideBottomNav(false);
+    setIsPasswordResetFlow(false); // Reset password reset flow flag
   };
 
   const handleLogout = async () => {
@@ -244,7 +248,11 @@ export default function App() {
 
   const handlePasswordResetComplete = () => {
     console.log('Password reset completed, returning to login');
+    setIsPasswordResetFlow(false); // Clear the password reset flow flag
     setCurrentScreen('login');
+    
+    // Clear URL parameters
+    window.history.replaceState({}, document.title, window.location.pathname);
   };
 
   const handleMessageUser = (user: User) => {
@@ -300,8 +308,8 @@ export default function App() {
     return null;
   }
 
-  // Show loading screen while checking auth
-  if (isLoading) {
+  // Show loading screen while checking auth (but not during password reset flow)
+  if (isLoading && !isPasswordResetFlow) {
     return (
       <div className="h-screen bg-black flex items-center justify-center">
         <div className="text-center">
