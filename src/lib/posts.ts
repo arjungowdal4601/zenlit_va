@@ -11,9 +11,12 @@ export interface CreatePostData {
 
 export async function createPost(postData: CreatePostData): Promise<Post | null> {
   try {
+    console.log('🔍 [createPost] Creating post:', postData);
+
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     
     if (userError || !user) {
+      console.error('🔍 [createPost] User not authenticated:', userError);
       throw new Error('User not authenticated');
     }
 
@@ -25,6 +28,7 @@ export async function createPost(postData: CreatePostData): Promise<Post | null>
       .maybeSingle();
 
     if (profileError) {
+      console.error('🔍 [createPost] Failed to get user profile:', profileError);
       throw new Error('Failed to get user profile');
     }
 
@@ -42,6 +46,7 @@ export async function createPost(postData: CreatePostData): Promise<Post | null>
       .single();
 
     if (postError) {
+      console.error('🔍 [createPost] Failed to create post:', postError);
       throw postError;
     }
 
@@ -50,22 +55,30 @@ export async function createPost(postData: CreatePostData): Promise<Post | null>
       id: newPost.id,
       userId: newPost.user_id,
       userName: profile?.name || 'Unknown User',
-      userDpUrl: profile?.profile_photo_url || `https://i.pravatar.cc/300?img=${user.id}`,
+      userDpUrl: profile?.profile_photo_url || `/images/default-avatar.png`,
       title: newPost.title,
       mediaUrl: newPost.media_url,
       caption: newPost.caption,
       timestamp: newPost.created_at
     };
 
+    console.log('🔍 [createPost] Post created successfully:', transformedPost);
     return transformedPost;
   } catch (error) {
-    console.error('Error creating post:', error);
+    console.error('🔍 [createPost] Error creating post:', error);
     return null;
   }
 }
 
 export async function getUserPosts(userId: string): Promise<Post[]> {
   try {
+    console.log('🔍 [getUserPosts] Getting posts for user:', userId);
+
+    if (!userId) {
+      console.error('🔍 [getUserPosts] User ID is required');
+      return [];
+    }
+
     const { data: posts, error } = await supabase
       .from('posts')
       .select(`
@@ -78,7 +91,10 @@ export async function getUserPosts(userId: string): Promise<Post[]> {
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
 
+    console.log('🔍 [getUserPosts] Posts query result:', { posts, error });
+
     if (error) {
+      console.error('🔍 [getUserPosts] Error fetching posts:', error);
       throw error;
     }
 
@@ -87,22 +103,25 @@ export async function getUserPosts(userId: string): Promise<Post[]> {
       id: post.id,
       userId: post.user_id,
       userName: post.profiles?.name || 'Unknown User',
-      userDpUrl: post.profiles?.profile_photo_url || `https://i.pravatar.cc/300?img=${post.user_id}`,
+      userDpUrl: post.profiles?.profile_photo_url || `/images/default-avatar.png`,
       title: post.title,
       mediaUrl: post.media_url,
       caption: post.caption,
       timestamp: post.created_at
     }));
 
+    console.log('🔍 [getUserPosts] Transformed posts:', transformedPosts);
     return transformedPosts;
   } catch (error) {
-    console.error('Error getting user posts:', error);
+    console.error('🔍 [getUserPosts] Error getting user posts:', error);
     return [];
   }
 }
 
 export async function getAllPosts(limit: number = 50): Promise<Post[]> {
   try {
+    console.log('🔍 [getAllPosts] Getting all posts with limit:', limit);
+
     const { data: posts, error } = await supabase
       .from('posts')
       .select(`
@@ -115,7 +134,10 @@ export async function getAllPosts(limit: number = 50): Promise<Post[]> {
       .order('created_at', { ascending: false })
       .limit(limit);
 
+    console.log('🔍 [getAllPosts] Posts query result:', { posts, error });
+
     if (error) {
+      console.error('🔍 [getAllPosts] Error fetching posts:', error);
       throw error;
     }
 
@@ -124,16 +146,17 @@ export async function getAllPosts(limit: number = 50): Promise<Post[]> {
       id: post.id,
       userId: post.user_id,
       userName: post.profiles?.name || 'Unknown User',
-      userDpUrl: post.profiles?.profile_photo_url || `https://i.pravatar.cc/300?img=${post.user_id}`,
+      userDpUrl: post.profiles?.profile_photo_url || `/images/default-avatar.png`,
       title: post.title,
       mediaUrl: post.media_url,
       caption: post.caption,
       timestamp: post.created_at
     }));
 
+    console.log('🔍 [getAllPosts] Transformed posts:', transformedPosts);
     return transformedPosts;
   } catch (error) {
-    console.error('Error getting all posts:', error);
+    console.error('🔍 [getAllPosts] Error getting all posts:', error);
     return [];
   }
 }
@@ -144,6 +167,8 @@ export async function getNearbyPosts(
   limit: number = 50
 ): Promise<Post[]> {
   try {
+    console.log('🔍 [getNearbyPosts] Getting nearby posts for user:', currentUserId, 'at location:', location);
+
     const latRounded = Number(location.latitude.toFixed(2));
     const lonRounded = Number(location.longitude.toFixed(2));
 
@@ -158,7 +183,10 @@ export async function getNearbyPosts(
       .order('created_at', { ascending: false })
       .limit(limit);
 
+    console.log('🔍 [getNearbyPosts] Nearby posts query result:', { posts, error });
+
     if (error) {
+      console.error('🔍 [getNearbyPosts] Error fetching nearby posts:', error);
       throw error;
     }
 
@@ -166,18 +194,17 @@ export async function getNearbyPosts(
       id: post.id,
       userId: post.user_id,
       userName: post.profiles?.name || 'Unknown User',
-      userDpUrl:
-        post.profiles?.profile_photo_url ||
-        `https://i.pravatar.cc/300?img=${post.user_id}`,
+      userDpUrl: post.profiles?.profile_photo_url || `/images/default-avatar.png`,
       title: post.title,
       mediaUrl: post.media_url,
       caption: post.caption,
       timestamp: post.created_at,
     }));
 
+    console.log('🔍 [getNearbyPosts] Transformed nearby posts:', transformed);
     return transformed;
   } catch (error) {
-    console.error('Error getting nearby posts:', error);
+    console.error('🔍 [getNearbyPosts] Error getting nearby posts:', error);
     return [];
   }
 }
@@ -185,7 +212,7 @@ export async function getNearbyPosts(
 // Delete post and its associated media from storage
 export async function deletePost(postId: string, userId: string): Promise<{ success: boolean; error?: string }> {
   try {
-    console.log(`Deleting post ${postId} for user ${userId}`);
+    console.log(`🔍 [deletePost] Deleting post ${postId} for user ${userId}`);
     
     // First, get the post to retrieve the media URL
     const { data: post, error: fetchError } = await supabase
@@ -196,7 +223,7 @@ export async function deletePost(postId: string, userId: string): Promise<{ succ
       .maybeSingle();
 
     if (fetchError) {
-      console.error('Error fetching post for deletion:', fetchError);
+      console.error('🔍 [deletePost] Error fetching post for deletion:', fetchError);
       return { success: false, error: 'Failed to fetch post' };
     }
 
@@ -208,10 +235,10 @@ export async function deletePost(postId: string, userId: string): Promise<{ succ
     if (post.media_url && !post.media_url.includes('/images/default-')) {
       const filePath = extractFilePathFromUrl(post.media_url, 'posts');
       if (filePath) {
-        console.log(`Deleting media file: ${filePath}`);
+        console.log(`🔍 [deletePost] Deleting media file: ${filePath}`);
         const deleteSuccess = await deleteImage('posts', filePath);
         if (!deleteSuccess) {
-          console.warn('Failed to delete media file, but continuing with post deletion');
+          console.warn('🔍 [deletePost] Failed to delete media file, but continuing with post deletion');
         }
       }
     }
@@ -224,14 +251,14 @@ export async function deletePost(postId: string, userId: string): Promise<{ succ
       .eq('user_id', userId);
 
     if (deleteError) {
-      console.error('Error deleting post from database:', deleteError);
+      console.error('🔍 [deletePost] Error deleting post from database:', deleteError);
       return { success: false, error: 'Failed to delete post from database' };
     }
 
-    console.log(`Successfully deleted post ${postId}`);
+    console.log(`🔍 [deletePost] Successfully deleted post ${postId}`);
     return { success: true };
   } catch (error) {
-    console.error('Error in deletePost:', error);
+    console.error('🔍 [deletePost] Error in deletePost:', error);
     return { success: false, error: 'An unexpected error occurred' };
   }
 }

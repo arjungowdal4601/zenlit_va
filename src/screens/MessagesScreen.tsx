@@ -37,9 +37,10 @@ export const MessagesScreen: React.FC<Props> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
 
-  // Use refs to store subscription instances
+  // Use refs to store subscription instances and prevent multiple subscriptions
   const conversationSubscriptionRef = useRef<any>(null);
   const messageSubscriptionRef = useRef<any>(null);
+  const isSubscribedToConversations = useRef(false);
 
   useEffect(() => {
     loadCurrentUser();
@@ -60,21 +61,27 @@ export const MessagesScreen: React.FC<Props> = ({
 
   // Separate useEffect for conversation subscriptions
   useEffect(() => {
-    if (!currentUserId) return;
+    if (!currentUserId || isSubscribedToConversations.current) return;
 
     const setupConversationSubscription = async () => {
       try {
+        console.log('🔍 [MessagesScreen] Setting up conversation subscription for user:', currentUserId);
+        
+        // Load conversations first
         await loadConversations(currentUserId);
         
         // Clean up any existing subscription
         if (conversationSubscriptionRef.current) {
+          console.log('🔍 [MessagesScreen] Cleaning up existing conversation subscription');
           conversationSubscriptionRef.current.unsubscribe();
+          conversationSubscriptionRef.current = null;
         }
         
         // Subscribe to conversation updates
         conversationSubscriptionRef.current = subscribeToConversations(
           currentUserId,
           (updatedConversation) => {
+            console.log('🔍 [MessagesScreen] Conversation update received:', updatedConversation);
             setConversations(prev => {
               const index = prev.findIndex(c => c.id === updatedConversation.id);
               if (index >= 0) {
@@ -89,11 +96,14 @@ export const MessagesScreen: React.FC<Props> = ({
             });
           },
           (error) => {
-            console.error('Conversation subscription error:', error);
+            console.error('🔍 [MessagesScreen] Conversation subscription error:', error);
           }
         );
+
+        isSubscribedToConversations.current = true;
+        console.log('🔍 [MessagesScreen] Conversation subscription set up successfully');
       } catch (error) {
-        console.error('Error setting up conversation subscription:', error);
+        console.error('🔍 [MessagesScreen] Error setting up conversation subscription:', error);
       }
     };
 
@@ -102,9 +112,11 @@ export const MessagesScreen: React.FC<Props> = ({
     // Cleanup function
     return () => {
       if (conversationSubscriptionRef.current) {
+        console.log('🔍 [MessagesScreen] Cleaning up conversation subscription on unmount');
         conversationSubscriptionRef.current.unsubscribe();
         conversationSubscriptionRef.current = null;
       }
+      isSubscribedToConversations.current = false;
     };
   }, [currentUserId]);
 
@@ -113,6 +125,7 @@ export const MessagesScreen: React.FC<Props> = ({
     if (!selectedConversation) {
       // Clean up message subscription when no conversation is selected
       if (messageSubscriptionRef.current) {
+        console.log('🔍 [MessagesScreen] Cleaning up message subscription - no conversation selected');
         messageSubscriptionRef.current.unsubscribe();
         messageSubscriptionRef.current = null;
       }
@@ -124,31 +137,39 @@ export const MessagesScreen: React.FC<Props> = ({
       setIsLoadingMessages(true);
       
       try {
+        console.log('🔍 [MessagesScreen] Setting up message subscription for conversation:', selectedConversation.id);
+        
         // Clean up any existing message subscription
         if (messageSubscriptionRef.current) {
+          console.log('🔍 [MessagesScreen] Cleaning up existing message subscription');
           messageSubscriptionRef.current.unsubscribe();
+          messageSubscriptionRef.current = null;
         }
 
         const result = await getConversationMessages(selectedConversation.id);
         
         if (result.success && result.messages) {
+          console.log('🔍 [MessagesScreen] Messages loaded successfully:', result.messages);
           setMessages(result.messages);
           
           // Subscribe to new messages
           messageSubscriptionRef.current = subscribeToMessages(
             selectedConversation.id,
             (newMessage) => {
+              console.log('🔍 [MessagesScreen] New message received:', newMessage);
               setMessages(prev => [...prev, newMessage]);
             },
             (error) => {
-              console.error('Messages subscription error:', error);
+              console.error('🔍 [MessagesScreen] Messages subscription error:', error);
             }
           );
         } else {
-          console.error('Failed to load messages:', result.error);
+          console.error('🔍 [MessagesScreen] Failed to load messages:', result.error);
+          setMessages([]);
         }
       } catch (error) {
-        console.error('Error setting up message subscription:', error);
+        console.error('🔍 [MessagesScreen] Error setting up message subscription:', error);
+        setMessages([]);
       } finally {
         setIsLoadingMessages(false);
       }
@@ -159,6 +180,7 @@ export const MessagesScreen: React.FC<Props> = ({
     // Cleanup function
     return () => {
       if (messageSubscriptionRef.current) {
+        console.log('🔍 [MessagesScreen] Cleaning up message subscription on conversation change');
         messageSubscriptionRef.current.unsubscribe();
         messageSubscriptionRef.current = null;
       }
@@ -167,13 +189,20 @@ export const MessagesScreen: React.FC<Props> = ({
 
   const loadCurrentUser = async () => {
     try {
+      console.log('🔍 [MessagesScreen] Loading current user...');
+      
       const { data: { user: currentUser } } = await supabase.auth.getUser();
       
-      if (!currentUser) return;
+      if (!currentUser) {
+        console.error('🔍 [MessagesScreen] No current user found');
+        setIsLoading(false);
+        return;
+      }
 
+      console.log('🔍 [MessagesScreen] Current user loaded:', currentUser.id);
       setCurrentUserId(currentUser.id);
     } catch (error) {
-      console.error('Error loading current user:', error);
+      console.error('🔍 [MessagesScreen] Error loading current user:', error);
     } finally {
       setIsLoading(false);
     }
@@ -181,59 +210,79 @@ export const MessagesScreen: React.FC<Props> = ({
 
   const loadConversations = async (userId: string) => {
     try {
+      console.log('🔍 [MessagesScreen] Loading conversations for user:', userId);
+      
       const result = await getUserConversations(userId);
       
       if (result.success && result.conversations) {
+        console.log('🔍 [MessagesScreen] Conversations loaded successfully:', result.conversations);
         setConversations(result.conversations);
       } else {
-        console.error('Failed to load conversations:', result.error);
+        console.error('🔍 [MessagesScreen] Failed to load conversations:', result.error);
+        setConversations([]);
       }
     } catch (error) {
-      console.error('Error loading conversations:', error);
+      console.error('🔍 [MessagesScreen] Error loading conversations:', error);
+      setConversations([]);
     }
   };
 
   const handleSelectUserForChat = async (user: User & { isNearby?: boolean }) => {
-    if (!currentUserId) return;
+    if (!currentUserId) {
+      console.error('🔍 [MessagesScreen] No current user ID available');
+      return;
+    }
 
     try {
+      console.log('🔍 [MessagesScreen] Selecting user for chat:', user.id);
+      
       // Get or create conversation
       const result = await getOrCreateConversation(currentUserId, user.id);
       
       if (result.success && result.conversation) {
+        console.log('🔍 [MessagesScreen] Conversation found/created:', result.conversation);
         setSelectedConversation(result.conversation);
       } else {
-        console.error('Failed to create conversation:', result.error);
+        console.error('🔍 [MessagesScreen] Failed to create conversation:', result.error);
+        alert('Failed to start conversation. Please try again.');
       }
     } catch (error) {
-      console.error('Error selecting user for chat:', error);
+      console.error('🔍 [MessagesScreen] Error selecting user for chat:', error);
+      alert('Failed to start conversation. Please try again.');
     }
   };
 
   const handleSelectConversation = async (conversation: Conversation) => {
+    console.log('🔍 [MessagesScreen] Selecting conversation:', conversation.id);
     setSelectedConversation(conversation);
   };
 
   const handleSendMessage = async (content: string) => {
-    if (!selectedConversation || !currentUserId) return;
+    if (!selectedConversation || !currentUserId) {
+      console.error('🔍 [MessagesScreen] Cannot send message - missing conversation or user ID');
+      return;
+    }
 
     try {
+      console.log('🔍 [MessagesScreen] Sending message to conversation:', selectedConversation.id);
+      
       const result = await sendMessage(selectedConversation.id, currentUserId, content);
       
       if (result.success && result.message) {
+        console.log('🔍 [MessagesScreen] Message sent successfully:', result.message);
         // Message will be added via subscription
-        console.log('Message sent successfully');
       } else {
-        console.error('Failed to send message:', result.error);
+        console.error('🔍 [MessagesScreen] Failed to send message:', result.error);
         alert('Failed to send message. Please try again.');
       }
     } catch (error) {
-      console.error('Error sending message:', error);
+      console.error('🔍 [MessagesScreen] Error sending message:', error);
       alert('Failed to send message. Please try again.');
     }
   };
 
   const handleBackToList = () => {
+    console.log('🔍 [MessagesScreen] Going back to conversation list');
     setSelectedConversation(null);
     if (onClearSelectedUser) {
       onClearSelectedUser();

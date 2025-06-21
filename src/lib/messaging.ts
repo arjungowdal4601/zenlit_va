@@ -40,7 +40,14 @@ export const getOrCreateConversation = async (
   error?: string;
 }> => {
   try {
-    console.log('Getting or creating conversation between:', currentUserId, 'and', otherUserId);
+    console.log('🔍 [getOrCreateConversation] Getting or creating conversation between:', currentUserId, 'and', otherUserId);
+
+    if (!currentUserId || !otherUserId) {
+      return {
+        success: false,
+        error: 'Invalid user IDs provided'
+      };
+    }
 
     // Call the database function to get or create conversation
     const { data, error } = await supabase.rpc('get_or_create_conversation', {
@@ -48,11 +55,13 @@ export const getOrCreateConversation = async (
       user2_id: otherUserId
     });
 
+    console.log('🔍 [getOrCreateConversation] RPC result:', { data, error });
+
     if (error) {
-      console.error('Error getting/creating conversation:', error);
+      console.error('🔍 [getOrCreateConversation] Error getting/creating conversation:', error);
       return {
         success: false,
-        error: 'Failed to create conversation'
+        error: error.message || 'Failed to create conversation'
       };
     }
 
@@ -67,11 +76,13 @@ export const getOrCreateConversation = async (
       .eq('id', data)
       .single();
 
+    console.log('🔍 [getOrCreateConversation] Conversation fetch result:', { conversation, fetchError });
+
     if (fetchError) {
-      console.error('Error fetching conversation details:', fetchError);
+      console.error('🔍 [getOrCreateConversation] Error fetching conversation details:', fetchError);
       return {
         success: false,
-        error: 'Failed to fetch conversation details'
+        error: fetchError.message || 'Failed to fetch conversation details'
       };
     }
 
@@ -90,16 +101,18 @@ export const getOrCreateConversation = async (
       other_participant: otherParticipant
     };
 
+    console.log('🔍 [getOrCreateConversation] Success:', formattedConversation);
+
     return {
       success: true,
       conversation: formattedConversation
     };
 
   } catch (error) {
-    console.error('Error in getOrCreateConversation:', error);
+    console.error('🔍 [getOrCreateConversation] Error in getOrCreateConversation:', error);
     return {
       success: false,
-      error: 'Failed to create conversation'
+      error: error instanceof Error ? error.message : 'Failed to create conversation'
     };
   }
 };
@@ -113,7 +126,14 @@ export const getUserConversations = async (
   error?: string;
 }> => {
   try {
-    console.log('Getting conversations for user:', userId);
+    console.log('🔍 [getUserConversations] Getting conversations for user:', userId);
+
+    if (!userId) {
+      return {
+        success: false,
+        error: 'User ID is required'
+      };
+    }
 
     const { data: conversations, error } = await supabase
       .from('conversations')
@@ -126,11 +146,13 @@ export const getUserConversations = async (
       .or(`participant_1_id.eq.${userId},participant_2_id.eq.${userId}`)
       .order('last_message_at', { ascending: false });
 
+    console.log('🔍 [getUserConversations] Raw query result:', { conversations, error });
+
     if (error) {
-      console.error('Error fetching conversations:', error);
+      console.error('🔍 [getUserConversations] Error fetching conversations:', error);
       return {
         success: false,
-        error: 'Failed to fetch conversations'
+        error: error.message || 'Failed to fetch conversations'
       };
     }
 
@@ -156,16 +178,18 @@ export const getUserConversations = async (
       };
     });
 
+    console.log('🔍 [getUserConversations] Formatted conversations:', formattedConversations);
+
     return {
       success: true,
       conversations: formattedConversations
     };
 
   } catch (error) {
-    console.error('Error in getUserConversations:', error);
+    console.error('🔍 [getUserConversations] Error in getUserConversations:', error);
     return {
       success: false,
-      error: 'Failed to fetch conversations'
+      error: error instanceof Error ? error.message : 'Failed to fetch conversations'
     };
   }
 };
@@ -180,7 +204,14 @@ export const getConversationMessages = async (
   error?: string;
 }> => {
   try {
-    console.log('Getting messages for conversation:', conversationId);
+    console.log('🔍 [getConversationMessages] Getting messages for conversation:', conversationId);
+
+    if (!conversationId) {
+      return {
+        success: false,
+        error: 'Conversation ID is required'
+      };
+    }
 
     const { data: messages, error } = await supabase
       .from('messages')
@@ -192,11 +223,13 @@ export const getConversationMessages = async (
       .order('created_at', { ascending: true })
       .limit(limit);
 
+    console.log('🔍 [getConversationMessages] Messages query result:', { messages, error });
+
     if (error) {
-      console.error('Error fetching messages:', error);
+      console.error('🔍 [getConversationMessages] Error fetching messages:', error);
       return {
         success: false,
-        error: 'Failed to fetch messages'
+        error: error.message || 'Failed to fetch messages'
       };
     }
 
@@ -211,16 +244,18 @@ export const getConversationMessages = async (
       sender: msg.sender
     }));
 
+    console.log('🔍 [getConversationMessages] Formatted messages:', formattedMessages);
+
     return {
       success: true,
       messages: formattedMessages
     };
 
   } catch (error) {
-    console.error('Error in getConversationMessages:', error);
+    console.error('🔍 [getConversationMessages] Error in getConversationMessages:', error);
     return {
       success: false,
-      error: 'Failed to fetch messages'
+      error: error instanceof Error ? error.message : 'Failed to fetch messages'
     };
   }
 };
@@ -236,7 +271,14 @@ export const sendMessage = async (
   error?: string;
 }> => {
   try {
-    console.log('Sending message to conversation:', conversationId);
+    console.log('🔍 [sendMessage] Sending message to conversation:', conversationId);
+
+    if (!conversationId || !senderId || !content.trim()) {
+      return {
+        success: false,
+        error: 'Missing required parameters'
+      };
+    }
 
     const { data: message, error } = await supabase
       .from('messages')
@@ -251,11 +293,13 @@ export const sendMessage = async (
       `)
       .single();
 
+    console.log('🔍 [sendMessage] Message insert result:', { message, error });
+
     if (error) {
-      console.error('Error sending message:', error);
+      console.error('🔍 [sendMessage] Error sending message:', error);
       return {
         success: false,
-        error: 'Failed to send message'
+        error: error.message || 'Failed to send message'
       };
     }
 
@@ -276,10 +320,10 @@ export const sendMessage = async (
     };
 
   } catch (error) {
-    console.error('Error in sendMessage:', error);
+    console.error('🔍 [sendMessage] Error in sendMessage:', error);
     return {
       success: false,
-      error: 'Failed to send message'
+      error: error instanceof Error ? error.message : 'Failed to send message'
     };
   }
 };
@@ -293,7 +337,7 @@ export const markMessagesAsRead = async (
   error?: string;
 }> => {
   try {
-    console.log('Marking messages as read for conversation:', conversationId);
+    console.log('🔍 [markMessagesAsRead] Marking messages as read for conversation:', conversationId);
 
     const { error } = await supabase
       .from('messages')
@@ -303,20 +347,20 @@ export const markMessagesAsRead = async (
       .eq('read', false);
 
     if (error) {
-      console.error('Error marking messages as read:', error);
+      console.error('🔍 [markMessagesAsRead] Error marking messages as read:', error);
       return {
         success: false,
-        error: 'Failed to mark messages as read'
+        error: error.message || 'Failed to mark messages as read'
       };
     }
 
     return { success: true };
 
   } catch (error) {
-    console.error('Error in markMessagesAsRead:', error);
+    console.error('🔍 [markMessagesAsRead] Error in markMessagesAsRead:', error);
     return {
       success: false,
-      error: 'Failed to mark messages as read'
+      error: error instanceof Error ? error.message : 'Failed to mark messages as read'
     };
   }
 };
@@ -327,7 +371,7 @@ export const subscribeToMessages = (
   onNewMessage: (message: MessageWithSender) => void,
   onError: (error: string) => void
 ) => {
-  console.log('Subscribing to messages for conversation:', conversationId);
+  console.log('🔍 [subscribeToMessages] Subscribing to messages for conversation:', conversationId);
 
   const subscription = supabase
     .channel(`messages:${conversationId}`)
@@ -340,7 +384,7 @@ export const subscribeToMessages = (
         filter: `conversation_id=eq.${conversationId}`
       },
       async (payload) => {
-        console.log('New message received:', payload);
+        console.log('🔍 [subscribeToMessages] New message received:', payload);
 
         // Fetch the complete message with sender info
         const { data: message, error } = await supabase
@@ -353,7 +397,7 @@ export const subscribeToMessages = (
           .single();
 
         if (error) {
-          console.error('Error fetching new message details:', error);
+          console.error('🔍 [subscribeToMessages] Error fetching new message details:', error);
           onError('Failed to fetch new message details');
           return;
         }
@@ -372,8 +416,7 @@ export const subscribeToMessages = (
       }
     )
     .subscribe((status) => {
-      console.log('Message subscription status:', status);
-      // Use proper error handling instead of invalid SUBSCRIPTION_ERROR check
+      console.log('🔍 [subscribeToMessages] Message subscription status:', status);
       if (status === REALTIME_SUBSCRIBE_STATES.CLOSED) {
         onError('Message subscription was closed');
       }
@@ -388,7 +431,7 @@ export const subscribeToConversations = (
   onConversationUpdate: (conversation: Conversation) => void,
   onError: (error: string) => void
 ) => {
-  console.log('Subscribing to conversation updates for user:', userId);
+  console.log('🔍 [subscribeToConversations] Subscribing to conversation updates for user:', userId);
 
   const subscription = supabase
     .channel(`conversations:${userId}`)
@@ -401,7 +444,7 @@ export const subscribeToConversations = (
         filter: `or(participant_1_id.eq.${userId},participant_2_id.eq.${userId})`
       },
       async (payload) => {
-        console.log('Conversation update received:', payload);
+        console.log('🔍 [subscribeToConversations] Conversation update received:', payload);
 
         // Fetch the complete conversation with participant info
         const { data: conversation, error } = await supabase
@@ -415,7 +458,7 @@ export const subscribeToConversations = (
           .single();
 
         if (error) {
-          console.error('Error fetching conversation details:', error);
+          console.error('🔍 [subscribeToConversations] Error fetching conversation details:', error);
           onError('Failed to fetch conversation details');
           return;
         }
@@ -438,8 +481,7 @@ export const subscribeToConversations = (
       }
     )
     .subscribe((status) => {
-      console.log('Conversation subscription status:', status);
-      // Use proper error handling instead of invalid SUBSCRIPTION_ERROR check
+      console.log('🔍 [subscribeToConversations] Conversation subscription status:', status);
       if (status === REALTIME_SUBSCRIBE_STATES.CLOSED) {
         onError('Conversation subscription was closed');
       }
