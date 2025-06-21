@@ -51,7 +51,7 @@ export const RadarScreen: React.FC<Props> = ({
   const [isUpdatingUsers, setIsUpdatingUsers] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [hideFromRadar, setHideFromRadar] = useState(false);
-  const [locationSharingEnabled, setLocationSharingEnabled] = useState(false); // New state for location toggle
+  const [locationSharingEnabled, setLocationSharingEnabled] = useState(false);
 
   // Refs for cleanup
   const locationWatchId = useRef<number | null>(null);
@@ -330,8 +330,9 @@ export const RadarScreen: React.FC<Props> = ({
   };
 
   const handleViewProfile = (user: User) => {
+    console.log('🔍 [RadarScreen] View profile clicked for user:', user.id, user.name);
+    // Pass the user object to the parent component
     onViewProfile(user);
-    onNavigate('profile');
   };
 
   const handleMessage = async (user: User) => {
@@ -614,7 +615,7 @@ export const RadarScreen: React.FC<Props> = ({
               <p className="text-xs text-gray-400">
                 {hideFromRadar 
                   ? 'Others cannot see you on their radar' 
-                  : 'Others can see you when you&apos;re nearby'
+                  : 'Others can see you when you\'re nearby'
                 }
               </p>
             </div>
@@ -690,7 +691,7 @@ export const RadarScreen: React.FC<Props> = ({
                 key={user.id}
                 user={user}
                 onMessage={handleMessage}
-                onViewProfile={() => handleViewProfile(user)}
+                onViewProfile={handleViewProfile}
               />
             ))
           ) : (
