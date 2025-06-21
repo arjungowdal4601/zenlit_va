@@ -379,12 +379,6 @@ export const subscribeToMessages = (
       }
     });
 
-  // Add error handler for the channel
-  subscription.on('error', (error) => {
-    console.error('Message subscription error:', error);
-    onError('Failed to subscribe to messages');
-  });
-
   return subscription;
 };
 
@@ -450,12 +444,6 @@ export const subscribeToConversations = (
         onError('Conversation subscription was closed');
       }
     });
-
-  // Add error handler for the channel
-  subscription.on('error', (error) => {
-    console.error('Conversation subscription error:', error);
-    onError('Failed to subscribe to conversations');
-  });
 
   return subscription;
 };
