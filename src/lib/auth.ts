@@ -212,6 +212,148 @@ export const signInWithPassword = async (email: string, password: string): Promi
 };
 
 /**
+ * Send password reset OTP
+ */
+export const sendPasswordResetOTP = async (email: string): Promise<AuthResult> => {
+  try {
+    console.log('Sending password reset OTP to:', email);
+
+    if (!supabase) {
+      return {
+        success: false,
+        error: 'Supabase client not available'
+      };
+    }
+
+    // Use Supabase's password recovery with OTP
+    const { data, error } = await supabase.auth.signInWithOtp({
+      email,
+      options: {
+        shouldCreateUser: false, // Don't create new user for password reset
+        data: {
+          reset_type: 'password_reset'
+        }
+      }
+    });
+
+    if (error) {
+      console.error('Password reset OTP error:', error);
+      
+      if (error.message.includes('User not found')) {
+        return {
+          success: false,
+          error: 'No account found with this email address'
+        };
+      }
+      
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+
+    console.log('Password reset OTP sent successfully');
+    return {
+      success: true,
+      data: data
+    };
+
+  } catch (error) {
+    console.error('Send password reset OTP error:', error);
+    return {
+      success: false,
+      error: 'Network error. Please try again.'
+    };
+  }
+};
+
+/**
+ * Verify password reset OTP
+ */
+export const verifyPasswordResetOTP = async (email: string, token: string): Promise<AuthResult> => {
+  try {
+    console.log('Verifying password reset OTP for:', email);
+
+    if (!supabase) {
+      return {
+        success: false,
+        error: 'Supabase client not available'
+      };
+    }
+
+    // Verify the OTP token for password reset
+    const { data, error } = await supabase.auth.verifyOtp({
+      email,
+      token,
+      type: 'email'
+    });
+
+    if (error) {
+      console.error('Password reset OTP verification error:', error);
+      return {
+        success: false,
+        error: error.message || 'Invalid verification code'
+      };
+    }
+
+    console.log('Password reset OTP verified successfully');
+    return {
+      success: true,
+      data: data
+    };
+
+  } catch (error) {
+    console.error('Verify password reset OTP error:', error);
+    return {
+      success: false,
+      error: 'Network error. Please try again.'
+    };
+  }
+};
+
+/**
+ * Reset password for authenticated user (after OTP verification)
+ */
+export const resetPassword = async (newPassword: string): Promise<AuthResult> => {
+  try {
+    console.log('Resetting password for authenticated user');
+
+    if (!supabase) {
+      return {
+        success: false,
+        error: 'Supabase client not available'
+      };
+    }
+
+    // Update the user's password
+    const { data, error } = await supabase.auth.updateUser({
+      password: newPassword
+    });
+
+    if (error) {
+      console.error('Password reset error:', error);
+      return {
+        success: false,
+        error: error.message || 'Failed to reset password'
+      };
+    }
+
+    console.log('Password reset successfully');
+    return {
+      success: true,
+      data: data
+    };
+
+  } catch (error) {
+    console.error('Reset password error:', error);
+    return {
+      success: false,
+      error: 'Network error. Please try again.'
+    };
+  }
+};
+
+/**
  * Handle refresh token errors
  */
 export const handleRefreshTokenError = async (): Promise<void> => {
@@ -265,6 +407,7 @@ export const completeProfileSetup = async (profileData: ProfileSetupData): Promi
       date_of_birth: profileData.dateOfBirth,
       gender: profileData.gender,
       profile_photo_url: profileData.profilePhotoUrl || null, // FIXED: Correct column name
+      email: user.email, // FIXED: Include email from auth user
       profile_completed: true,
       updated_at: new Date().toISOString()
     };

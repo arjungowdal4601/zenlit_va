@@ -346,11 +346,6 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
               </p>
             </div>
 
-            {/* Debug info - REMOVE THIS AFTER TESTING */}
-            <div className="mb-4 p-2 bg-blue-900/20 border border-blue-700 rounded text-xs text-blue-300">
-              DEBUG: currentView={currentView}, signupStep={signupStep}, otpLength={formData.otp.length}
-            </div>
-
             {/* Error Message */}
             {error && (
               <div className="mb-4 bg-red-900/30 border border-red-700 rounded-lg p-3">

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ChevronLeftIcon, CheckCircleIcon, EnvelopeIcon } from '@heroicons/react/24/outline';
+import { sendPasswordResetOTP, verifyPasswordResetOTP, resetPassword } from '../lib/auth';
 
 interface Props {
   onBack: () => void;
@@ -14,97 +15,153 @@ export const PasswordResetScreen: React.FC<Props> = ({ onBack }) => {
     confirmPassword: ''
   });
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [countdown, setCountdown] = useState(0);
+
+  // Countdown timer effect for OTP resend
+  React.useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (countdown > 0) {
+      timer = setTimeout(() => {
+        setCountdown(prev => prev - 1);
+      }, 1000);
+    }
+    return () => clearTimeout(timer);
+  }, [countdown]);
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({
       ...prev,
       [field]: value
     }));
+    
+    // Clear errors when user starts typing
+    if (error) setError(null);
   };
 
-  const handleSendResetCode = async () => {
+  const handleSendResetCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+
     if (!formData.email) {
-      alert('Please enter your email address');
+      setError('Please enter your email address');
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email)) {
+      setError('Please enter a valid email address');
       return;
     }
 
     setIsLoading(true);
     
-    // Simulate sending reset code
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    setIsLoading(false);
-    setStep('otp');
-    setCountdown(60);
-
-    // Start countdown timer
-    const timer = setInterval(() => {
-      setCountdown(prev => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
+    try {
+      console.log('Sending password reset OTP to:', formData.email);
+      const result = await sendPasswordResetOTP(formData.email);
+      
+      if (result.success) {
+        console.log('Password reset OTP sent successfully');
+        setStep('otp');
+        setCountdown(60);
+      } else {
+        console.error('Password reset OTP send failed:', result.error);
+        setError(result.error || 'Failed to send reset code');
+      }
+    } catch (error) {
+      console.error('Password reset OTP send error:', error);
+      setError('Network error. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleVerifyOtp = async () => {
+    setError(null);
+
     if (!formData.otp || formData.otp.length !== 6) {
-      alert('Please enter a valid 6-digit code');
+      setError('Please enter a valid 6-digit code');
       return;
     }
 
     setIsLoading(true);
     
-    // Simulate OTP verification
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    setIsLoading(false);
-    setStep('newPassword');
+    try {
+      console.log('Verifying password reset OTP for:', formData.email);
+      const result = await verifyPasswordResetOTP(formData.email, formData.otp);
+      
+      if (result.success) {
+        console.log('Password reset OTP verified successfully');
+        setStep('newPassword');
+      } else {
+        console.error('Password reset OTP verification failed:', result.error);
+        setError(result.error || 'Invalid verification code');
+      }
+    } catch (error) {
+      console.error('Password reset OTP verification error:', error);
+      setError('Network error. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleResetPassword = async () => {
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+
     if (!formData.newPassword || formData.newPassword.length < 6) {
-      alert('Password must be at least 6 characters long');
+      setError('Password must be at least 6 characters long');
       return;
     }
 
     if (formData.newPassword !== formData.confirmPassword) {
-      alert('Passwords do not match');
+      setError('Passwords do not match');
       return;
     }
 
     setIsLoading(true);
     
-    // Simulate password reset
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    setIsLoading(false);
-    setStep('success');
+    try {
+      console.log('Resetting password for authenticated user');
+      const result = await resetPassword(formData.newPassword);
+      
+      if (result.success) {
+        console.log('Password reset successfully');
+        setStep('success');
+      } else {
+        console.error('Password reset failed:', result.error);
+        setError(result.error || 'Failed to reset password');
+      }
+    } catch (error) {
+      console.error('Password reset error:', error);
+      setError('Network error. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleResendCode = async () => {
-    setIsLoading(true);
-    
-    // Simulate resending code
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    setIsLoading(false);
-    setCountdown(60);
+    if (countdown > 0) return;
 
-    // Start countdown timer
-    const timer = setInterval(() => {
-      setCountdown(prev => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
+    setError(null);
+    setIsLoading(true);
+
+    try {
+      const result = await sendPasswordResetOTP(formData.email);
+      
+      if (result.success) {
+        setCountdown(60);
+        // Clear the OTP field
+        setFormData(prev => ({ ...prev, otp: '' }));
+      } else {
+        setError(result.error || 'Failed to resend code');
+      }
+    } catch (error) {
+      setError('Network error. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const renderEmailStep = () => (
@@ -119,34 +176,36 @@ export const PasswordResetScreen: React.FC<Props> = ({ onBack }) => {
           </p>
       </div>
 
-      <div>
-        <label className="block text-sm font-medium text-gray-300 mb-2">
-          Email Address
-        </label>
-        <input
-          type="email"
-          value={formData.email}
-          onChange={(e) => handleInputChange('email', e.target.value)}
-          className="w-full px-4 py-3 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          placeholder="Enter your email address"
-          required
-        />
-      </div>
+      <form onSubmit={handleSendResetCode} className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-2">
+            Email Address
+          </label>
+          <input
+            type="email"
+            value={formData.email}
+            onChange={(e) => handleInputChange('email', e.target.value)}
+            className="w-full px-4 py-3 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            placeholder="Enter your email address"
+            required
+          />
+        </div>
 
-      <button
-        onClick={handleSendResetCode}
-        disabled={isLoading || !formData.email}
-        className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 active:scale-95 transition-all disabled:bg-gray-600 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-      >
-        {isLoading ? (
-          <>
-            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-            Sending Code...
-          </>
-          ) : (
-            "Send Reset Code"
-          )}
-      </button>
+        <button
+          type="submit"
+          disabled={isLoading || !formData.email}
+          className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 active:scale-95 transition-all disabled:bg-gray-600 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+        >
+          {isLoading ? (
+            <>
+              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              Sending Code...
+            </>
+            ) : (
+              "Send Reset Code"
+            )}
+        </button>
+      </form>
     </div>
   );
 
@@ -162,52 +221,54 @@ export const PasswordResetScreen: React.FC<Props> = ({ onBack }) => {
           </p>
       </div>
 
-      <div>
-        <label className="block text-sm font-medium text-gray-300 mb-2">
-          Enter Verification Code
-        </label>
-        <input
-          type="text"
-          value={formData.otp}
-          onChange={(e) => {
-            const value = e.target.value.replace(/\D/g, '').slice(0, 6);
-            handleInputChange('otp', value);
-          }}
-          className="w-full px-4 py-3 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-center tracking-widest text-lg"
-          placeholder="000000"
-          maxLength={6}
-        />
-        <p className="text-xs text-gray-500 mt-1">
-          Enter the 6-digit code sent to your email
-        </p>
-      </div>
+      <div className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-2">
+            Enter Verification Code
+          </label>
+          <input
+            type="text"
+            value={formData.otp}
+            onChange={(e) => {
+              const value = e.target.value.replace(/\D/g, '').slice(0, 6);
+              handleInputChange('otp', value);
+            }}
+            className="w-full px-4 py-3 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-center tracking-widest text-lg"
+            placeholder="000000"
+            maxLength={6}
+          />
+          <p className="text-xs text-gray-500 mt-1">
+            Enter the 6-digit code sent to your email
+          </p>
+        </div>
 
-      <button
-        onClick={handleVerifyOtp}
-        disabled={isLoading || formData.otp.length !== 6}
-        className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 active:scale-95 transition-all disabled:bg-gray-600 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-      >
-        {isLoading ? (
-          <>
-            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-            Verifying...
-          </>
-          ) : (
-            "Verify Code"
-          )}
-      </button>
+        <button
+          onClick={handleVerifyOtp}
+          disabled={isLoading || formData.otp.length !== 6}
+          className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 active:scale-95 transition-all disabled:bg-gray-600 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+        >
+          {isLoading ? (
+            <>
+              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              Verifying...
+            </>
+            ) : (
+              "Verify Code"
+            )}
+        </button>
 
-      <div className="text-center">
-          <p className="text-gray-400 text-sm">
-            Didn&apos;t receive the code?{' '}
-          <button
-            onClick={handleResendCode}
-            disabled={countdown > 0 || isLoading}
-            className="text-blue-400 hover:text-blue-300 transition-colors disabled:text-gray-500 disabled:cursor-not-allowed"
-          >
-            {countdown > 0 ? `Resend in ${countdown}s` : 'Resend Code'}
-          </button>
-        </p>
+        <div className="text-center">
+            <p className="text-gray-400 text-sm">
+              Didn&apos;t receive the code?{' '}
+            <button
+              onClick={handleResendCode}
+              disabled={countdown > 0 || isLoading}
+              className="text-blue-400 hover:text-blue-300 transition-colors disabled:text-gray-500 disabled:cursor-not-allowed"
+            >
+              {countdown > 0 ? `Resend in ${countdown}s` : 'Resend Code'}
+            </button>
+          </p>
+        </div>
       </div>
     </div>
   );
@@ -226,69 +287,71 @@ export const PasswordResetScreen: React.FC<Props> = ({ onBack }) => {
         </p>
       </div>
 
-      <div>
-        <label className="block text-sm font-medium text-gray-300 mb-2">
-          New Password
-        </label>
-        <div className="relative">
+      <form onSubmit={handleResetPassword} className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-2">
+            New Password
+          </label>
+          <div className="relative">
+            <input
+              type={showPassword ? 'text' : 'password'}
+              value={formData.newPassword}
+              onChange={(e) => handleInputChange('newPassword', e.target.value)}
+              className="w-full px-4 py-3 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-12"
+              placeholder="Enter new password"
+              required
+              minLength={6}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
+            >
+              {showPassword ? (
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21" />
+                </svg>
+              ) : (
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+              )}
+            </button>
+          </div>
+          <p className="text-xs text-gray-500 mt-1">Password must be at least 6 characters</p>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-2">
+            Confirm New Password
+          </label>
           <input
-            type={showPassword ? 'text' : 'password'}
-            value={formData.newPassword}
-            onChange={(e) => handleInputChange('newPassword', e.target.value)}
-            className="w-full px-4 py-3 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-12"
-            placeholder="Enter new password"
+            type="password"
+            value={formData.confirmPassword}
+            onChange={(e) => handleInputChange('confirmPassword', e.target.value)}
+            className="w-full px-4 py-3 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            placeholder="Confirm new password"
             required
             minLength={6}
           />
-          <button
-            type="button"
-            onClick={() => setShowPassword(!showPassword)}
-            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
-          >
-            {showPassword ? (
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21" />
-              </svg>
-            ) : (
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-              </svg>
-            )}
-          </button>
         </div>
-        <p className="text-xs text-gray-500 mt-1">Password must be at least 6 characters</p>
-      </div>
 
-      <div>
-        <label className="block text-sm font-medium text-gray-300 mb-2">
-          Confirm New Password
-        </label>
-        <input
-          type="password"
-          value={formData.confirmPassword}
-          onChange={(e) => handleInputChange('confirmPassword', e.target.value)}
-          className="w-full px-4 py-3 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          placeholder="Confirm new password"
-          required
-          minLength={6}
-        />
-      </div>
-
-      <button
-        onClick={handleResetPassword}
-        disabled={isLoading || !formData.newPassword || !formData.confirmPassword}
-        className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 active:scale-95 transition-all disabled:bg-gray-600 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-      >
-        {isLoading ? (
-          <>
-            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-            Resetting Password...
-          </>
-          ) : (
-            "Reset Password"
-          )}
-      </button>
+        <button
+          type="submit"
+          disabled={isLoading || !formData.newPassword || !formData.confirmPassword}
+          className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 active:scale-95 transition-all disabled:bg-gray-600 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+        >
+          {isLoading ? (
+            <>
+              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              Resetting Password...
+            </>
+            ) : (
+              "Reset Password"
+            )}
+        </button>
+      </form>
     </div>
   );
 
@@ -324,17 +387,19 @@ export const PasswordResetScreen: React.FC<Props> = ({ onBack }) => {
               <ChevronLeftIcon className="w-5 h-5 text-white" />
             </button>
             <div className="flex items-center">
-              <img
-                src="https://udixrkvcyrxmmrbadhpj.supabase.co/storage/v1/object/public/app-images//Picture2.png"
-                alt="Zenlit"
-                className="w-8 h-8 object-contain rounded mr-3"
-              />
               <h1 className="text-xl font-bold text-white">Zenlit</h1>
             </div>
           </div>
 
           {/* Form Container */}
           <div className="bg-gray-900 rounded-2xl p-6 border border-gray-800">
+            {/* Error Message */}
+            {error && (
+              <div className="mb-4 bg-red-900/30 border border-red-700 rounded-lg p-3">
+                <p className="text-red-400 text-sm">{error}</p>
+              </div>
+            )}
+
             {step === 'email' && renderEmailStep()}
             {step === 'otp' && renderOtpStep()}
             {step === 'newPassword' && renderNewPasswordStep()}
