@@ -31,7 +31,8 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
     currentView,
     signupStep,
     isLoading,
-    error
+    error,
+    formDataOtp: formData.otp
   });
 
   // Countdown timer effect for OTP resend
@@ -148,14 +149,21 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
     setIsLoading(true);
 
     try {
-      console.log('🔍 DEBUG: Verifying OTP for:', formData.email);
+      console.log('🔍 DEBUG: Verifying OTP for:', formData.email, 'with code:', formData.otp);
       const result = await verifySignupOTP(formData.email, formData.otp);
+      
+      console.log('🔍 DEBUG: OTP verification result:', result);
       
       if (result.success) {
         console.log('🔍 DEBUG: OTP verified successfully, moving to password step');
         // CRITICAL: Move to password creation step
         setSignupStep('password');
         console.log('🔍 DEBUG: signupStep should now be "password"');
+        
+        // Force a re-render to ensure the state change takes effect
+        setTimeout(() => {
+          console.log('🔍 DEBUG: After timeout, signupStep is:', signupStep);
+        }, 100);
       } else {
         console.error('OTP verification failed:', result.error);
         setError(result.error || 'Invalid verification code');
@@ -342,7 +350,7 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
 
             {/* Debug info - REMOVE THIS AFTER TESTING */}
             <div className="mb-4 p-2 bg-blue-900/20 border border-blue-700 rounded text-xs text-blue-300">
-              DEBUG: currentView={currentView}, signupStep={signupStep}
+              DEBUG: currentView={currentView}, signupStep={signupStep}, otpLength={formData.otp.length}
             </div>
 
             {/* Error Message */}
