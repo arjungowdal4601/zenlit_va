@@ -18,6 +18,7 @@ import {
   createDebouncedLocationUpdate,
   updateRadarVisibility
 } from '../lib/location';
+import { getOrCreateConversation } from '../lib/messaging';
 
 interface Props {
   userGender: 'male' | 'female';
@@ -316,11 +317,34 @@ export const RadarScreen: React.FC<Props> = ({
     onNavigate('profile');
   };
 
-  const handleMessage = (user: User) => {
-    if (onMessageUser) {
-      onMessageUser(user);
+  const handleMessage = async (user: User) => {
+    if (!currentUser) {
+      console.error('No current user found');
+      return;
     }
-    onNavigate('messages');
+
+    try {
+      console.log('Creating/finding conversation between', currentUser.id, 'and', user.id);
+      
+      // Get or create conversation using the messaging service
+      const result = await getOrCreateConversation(currentUser.id, user.id);
+      
+      if (result.success && result.conversation) {
+        console.log('Conversation found/created:', result.conversation.id);
+        
+        // Navigate to messages with the selected user
+        if (onMessageUser) {
+          onMessageUser(user);
+        }
+        onNavigate('messages');
+      } else {
+        console.error('Failed to create/find conversation:', result.error);
+        alert('Failed to start conversation. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error handling message:', error);
+      alert('Failed to start conversation. Please try again.');
+    }
   };
 
   const handleEnablePreciseLocation = () => {

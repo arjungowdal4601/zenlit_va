@@ -5,7 +5,7 @@ import { ChevronLeftIcon, Cog6ToothIcon, UserIcon, ArrowRightOnRectangleIcon, Ca
 import { PostsGalleryScreen } from './PostsGalleryScreen';
 import { EditProfileScreen } from './EditProfileScreen';
 import { supabase } from '../lib/supabase';
-import { getUserPosts } from '../lib/posts';
+import { getUserPosts, getAllPosts } from '../lib/posts';
 
 interface Props {
   user?: User | null;
@@ -51,10 +51,16 @@ export const ProfileScreen: React.FC<Props> = ({
 
   const loadUserPosts = async (userId: string) => {
     try {
+      console.log('Loading posts for user:', userId);
+      
+      // Use getUserPosts for any user (current or other users)
+      // The RLS policy now allows viewing all posts for authenticated users
       const posts = await getUserPosts(userId);
+      console.log('Loaded posts:', posts);
       setUserPosts(posts);
     } catch (error) {
       console.error('Load user posts error:', error);
+      setUserPosts([]);
     }
   };
 
@@ -373,7 +379,7 @@ export const ProfileScreen: React.FC<Props> = ({
             <h2 className="text-xl font-semibold text-white">
               {isCurrentUser ? 'My Posts' : 'Posts'}
             </h2>
-            {isCurrentUser && userPosts.length > 0 && (
+            {userPosts.length > 0 && (
               <span className="text-sm text-gray-400">
                 {userPosts.length} post{userPosts.length !== 1 ? 's' : ''}
               </span>
@@ -381,7 +387,7 @@ export const ProfileScreen: React.FC<Props> = ({
           </div>
           
           {/* Posts Grid */}
-          {isCurrentUser && userPosts.length > 0 ? (
+          {userPosts.length > 0 ? (
             <div className="grid grid-cols-3 gap-1">
               {userPosts.slice(0, 9).map((post) => (
                 <button
@@ -412,31 +418,14 @@ export const ProfileScreen: React.FC<Props> = ({
               <p className="text-gray-500 text-sm">Share your first post to get started!</p>
             </div>
           ) : (
-            <div className="grid grid-cols-3 gap-1">
-              {userPosts.slice(0, 9).map((post) => (
-                <button
-                  key={post.id}
-                  onClick={handleMediaClick}
-                  className="aspect-square active:scale-95 transition-transform"
-                >
-                  <img
-                    src={post.mediaUrl}
-                    alt={post.caption}
-                    className="w-full h-full object-cover rounded-lg"
-                  />
-                </button>
-              ))}
-              {userPosts.length === 0 && (
-                <div className="col-span-3 text-center py-12">
-                  <div className="w-16 h-16 bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                  </div>
-                  <p className="text-gray-400 mb-2">No posts yet</p>
-                  <p className="text-gray-500 text-sm">Posts will appear here when shared</p>
-                </div>
-              )}
+            <div className="text-center py-12">
+              <div className="w-16 h-16 bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+              </div>
+              <p className="text-gray-400 mb-2">No posts yet</p>
+              <p className="text-gray-500 text-sm">Posts will appear here when shared</p>
             </div>
           )}
         </div>
