@@ -553,7 +553,7 @@ export const RadarScreen: React.FC<Props> = ({
               <p className="text-xs text-gray-400">
                 {hideFromRadar 
                   ? 'Others cannot see you on their radar' 
-                  : 'Others can see you when you\'re nearby'
+                  : 'Others can see you when you&apos;re nearby'
                 }
               </p>
             </div>
@@ -675,7 +675,7 @@ export const RadarScreen: React.FC<Props> = ({
           )
         ) : (
           <div className="text-center py-12">
-            <p className="text-gray-400">Toggle "Show Nearby" to see people around you</p>
+            <p className="text-gray-400">Toggle &quot;Show Nearby&quot; to see people around you</p>
           </div>
         )}
       </div>

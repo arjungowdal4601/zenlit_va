@@ -150,11 +150,11 @@ export const ProfileSetupScreen: React.FC<Props> = ({ onComplete, onBack }) => {
         try {
           const uploadResult = await uploadProfileImage(user.id, profileData.profilePhoto);
           
-          if (uploadResult && typeof uploadResult === 'string') {
+          if (typeof uploadResult === 'string') {
             // If uploadProfileImage returns a string directly
             profilePhotoUrl = uploadResult;
             console.log('Profile photo uploaded successfully:', profilePhotoUrl);
-          } else if (uploadResult && typeof uploadResult === 'object' && uploadResult.publicUrl) {
+          } else if (uploadResult && typeof uploadResult === 'object' && 'publicUrl' in uploadResult) {
             // If uploadProfileImage returns an object with publicUrl
             profilePhotoUrl = uploadResult.publicUrl || undefined;
             console.log('Profile photo uploaded successfully:', profilePhotoUrl);
