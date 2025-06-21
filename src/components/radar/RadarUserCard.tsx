@@ -7,7 +7,7 @@ import { UserProfileModal } from './UserProfileModal';
 interface Props {
   user: User;
   onMessage: (user: User) => void;
-  onViewProfile: (user: User) => void; // Changed to pass the user object
+  onViewProfile: () => void;
 }
 
 export const RadarUserCard: React.FC<Props> = ({ user, onMessage, onViewProfile }) => {
@@ -23,16 +23,6 @@ export const RadarUserCard: React.FC<Props> = ({ user, onMessage, onViewProfile 
   // Helper function to check if a URL is valid and not a placeholder
   const isValidUrl = (url: string | undefined | null): boolean => {
     return !!(url && url.trim() !== '' && url !== '#');
-  };
-
-  const handleViewProfile = () => {
-    console.log('🔍 [RadarUserCard] View profile clicked for user:', user.id);
-    onViewProfile(user); // Pass the user object directly
-  };
-
-  const handleMessage = () => {
-    console.log('🔍 [RadarUserCard] Message clicked for user:', user.id);
-    onMessage(user); // This will trigger direct chat navigation
   };
 
   return (
@@ -135,14 +125,14 @@ export const RadarUserCard: React.FC<Props> = ({ user, onMessage, onViewProfile 
             {/* Action Buttons - Right side */}
             <div className="flex gap-2">
               <button
-                onClick={handleViewProfile}
+                onClick={onViewProfile}
                 className="bg-gray-700 text-white px-4 py-3 rounded-xl hover:bg-gray-600 active:scale-95 transition-all"
                 title="View full profile"
               >
                 <UserIcon className="w-5 h-5" />
               </button>
               <button
-                onClick={handleMessage}
+                onClick={() => onMessage(user)}
                 className="bg-green-600 text-white px-4 py-3 rounded-xl hover:bg-green-700 active:scale-95 transition-all"
                 title="Send message (very close!)"
               >
@@ -159,7 +149,7 @@ export const RadarUserCard: React.FC<Props> = ({ user, onMessage, onViewProfile 
           onClose={() => setShowModal(false)}
           onViewProfile={() => {
             setShowModal(false);
-            handleViewProfile();
+            onViewProfile();
           }}
         />
       )}
