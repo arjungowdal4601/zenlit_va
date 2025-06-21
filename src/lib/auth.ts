@@ -256,7 +256,7 @@ export const completeProfileSetup = async (profileData: ProfileSetupData): Promi
       };
     }
 
-    // Create or update profile
+    // Create or update profile - FIXED: Changed avatar_url to profile_photo_url
     const profilePayload = {
       id: user.id,
       name: profileData.fullName,
@@ -264,7 +264,7 @@ export const completeProfileSetup = async (profileData: ProfileSetupData): Promi
       bio: profileData.bio,
       date_of_birth: profileData.dateOfBirth,
       gender: profileData.gender,
-      avatar_url: profileData.profilePhotoUrl || null,
+      profile_photo_url: profileData.profilePhotoUrl || null, // FIXED: Correct column name
       profile_completed: true,
       updated_at: new Date().toISOString()
     };
