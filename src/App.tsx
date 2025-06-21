@@ -10,8 +10,8 @@ import { CreatePostScreen } from './screens/CreatePostScreen';
 import { MessagesScreen } from './screens/MessagesScreen';
 import { UserGroupIcon, Squares2X2Icon, UserIcon, PlusIcon, ChatBubbleLeftIcon } from '@heroicons/react/24/outline';
 import { User } from './types';
-import { supabase, onAuthStateChange } from './lib/supabase';
-import { checkSession, handleRefreshTokenError } from './lib/auth';
+import { supabase, onAuthStateChange, checkSession } from './lib/supabase';
+import { handleRefreshTokenError } from './lib/auth';
 
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState<'welcome' | 'login' | 'profileSetup' | 'app'>('welcome');
