@@ -15,9 +15,9 @@
   },
   "dependencies": {
     "@heroicons/react": "^2.0.18",
-    "@tabler/icons-react": "^2.47.0",
-    "@radix-ui/react-slot": "^1.0.2",
+    "@radix-ui/react-slot": "^1.2.3",
     "@supabase/supabase-js": "^2.50.0",
+    "@tabler/icons-react": "^2.47.0",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.0.0",
     "date-fns": "^2.30.0",
