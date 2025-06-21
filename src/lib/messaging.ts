@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { Message } from '../types';
+import { REALTIME_SUBSCRIBE_STATES } from '@supabase/supabase-js';
 
 export interface Conversation {
   id: string;
@@ -372,7 +373,7 @@ export const subscribeToMessages = (
     )
     .subscribe((status) => {
       console.log('Message subscription status:', status);
-      if (status === 'SUBSCRIPTION_ERROR') {
+      if (status === REALTIME_SUBSCRIBE_STATES.SUBSCRIPTION_ERROR) {
         onError('Failed to subscribe to messages');
       }
     });
@@ -437,7 +438,7 @@ export const subscribeToConversations = (
     )
     .subscribe((status) => {
       console.log('Conversation subscription status:', status);
-      if (status === 'SUBSCRIPTION_ERROR') {
+      if (status === REALTIME_SUBSCRIBE_STATES.SUBSCRIPTION_ERROR) {
         onError('Failed to subscribe to conversations');
       }
     });
