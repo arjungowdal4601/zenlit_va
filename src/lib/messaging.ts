@@ -1,6 +1,30 @@
 import { supabase } from './supabase';
 import { Message } from '../types';
 import { REALTIME_SUBSCRIBE_STATES } from '@supabase/supabase-js';
+import type { Database } from '../types/supabase';
+
+// Type aliases for better type safety with join queries
+type ProfileJoin = {
+  id: string;
+  name: string;
+  username?: string;
+  profile_photo_url?: string;
+};
+
+type ConversationQueryResult = Database['public']['Tables']['conversations']['Row'] & {
+  participant_1: ProfileJoin;
+  participant_2: ProfileJoin;
+};
+
+type MessageQueryResult = Database['public']['Tables']['messages']['Row'] & {
+  sender: ProfileJoin;
+};
+
+type LatestMessageQueryResult = {
+  content: string;
+  created_at: string;
+  sender_id: string;
+};
 
 export interface Conversation {
   id: string;
@@ -65,7 +89,7 @@ export const getOrCreateConversation = async (
       };
     }
 
-    // Get the full conversation details
+    // Get the full conversation details with explicit type assertion
     const { data: conversation, error: fetchError } = await supabase
       .from('conversations')
       .select(`
@@ -74,7 +98,7 @@ export const getOrCreateConversation = async (
         participant_2:participant_2_id(id, name, username, profile_photo_url)
       `)
       .eq('id', data)
-      .single();
+      .single() as { data: ConversationQueryResult | null; error: any };
 
     console.log('🔍 [getOrCreateConversation] Conversation fetch result:', { conversation, fetchError });
 
@@ -83,6 +107,13 @@ export const getOrCreateConversation = async (
       return {
         success: false,
         error: fetchError.message || 'Failed to fetch conversation details'
+      };
+    }
+
+    if (!conversation) {
+      return {
+        success: false,
+        error: 'Conversation not found after creation'
       };
     }
 
@@ -135,7 +166,7 @@ export const getUserConversations = async (
       };
     }
 
-    // First, get conversations with participant info
+    // First, get conversations with participant info using explicit type assertion
     const { data: conversations, error } = await supabase
       .from('conversations')
       .select(`
@@ -144,7 +175,7 @@ export const getUserConversations = async (
         participant_2:participant_2_id(id, name, username, profile_photo_url)
       `)
       .or(`participant_1_id.eq.${userId},participant_2_id.eq.${userId}`)
-      .order('last_message_at', { ascending: false });
+      .order('last_message_at', { ascending: false }) as { data: ConversationQueryResult[] | null; error: any };
 
     console.log('🔍 [getUserConversations] Raw query result:', { conversations, error });
 
@@ -164,13 +195,13 @@ export const getUserConversations = async (
         ? conv.participant_2 
         : conv.participant_1;
 
-      // Get the latest message for this conversation
+      // Get the latest message for this conversation with explicit type assertion
       const { data: latestMessages, error: messageError } = await supabase
         .from('messages')
         .select('content, created_at, sender_id')
         .eq('conversation_id', conv.id)
         .order('created_at', { ascending: false })
-        .limit(1);
+        .limit(1) as { data: LatestMessageQueryResult[] | null; error: any };
 
       if (messageError) {
         console.error('🔍 [getUserConversations] Error fetching latest message for conversation:', conv.id, messageError);
@@ -227,6 +258,7 @@ export const getConversationMessages = async (
       };
     }
 
+    // Get messages with sender info using explicit type assertion
     const { data: messages, error } = await supabase
       .from('messages')
       .select(`
@@ -235,7 +267,7 @@ export const getConversationMessages = async (
       `)
       .eq('conversation_id', conversationId)
       .order('created_at', { ascending: true })
-      .limit(limit);
+      .limit(limit) as { data: MessageQueryResult[] | null; error: any };
 
     console.log('🔍 [getConversationMessages] Messages query result:', { messages, error });
 
@@ -294,6 +326,7 @@ export const sendMessage = async (
       };
     }
 
+    // Insert message and get result with sender info using explicit type assertion
     const { data: message, error } = await supabase
       .from('messages')
       .insert({
@@ -305,7 +338,7 @@ export const sendMessage = async (
         *,
         sender:sender_id(id, name, profile_photo_url)
       `)
-      .single();
+      .single() as { data: MessageQueryResult | null; error: any };
 
     console.log('🔍 [sendMessage] Message insert result:', { message, error });
 
@@ -314,6 +347,13 @@ export const sendMessage = async (
       return {
         success: false,
         error: error.message || 'Failed to send message'
+      };
+    }
+
+    if (!message) {
+      return {
+        success: false,
+        error: 'Message was not created'
       };
     }
 
@@ -400,7 +440,7 @@ export const subscribeToMessages = (
       async (payload) => {
         console.log('🔍 [subscribeToMessages] New message received:', payload);
 
-        // Fetch the complete message with sender info
+        // Fetch the complete message with sender info using explicit type assertion
         const { data: message, error } = await supabase
           .from('messages')
           .select(`
@@ -408,11 +448,16 @@ export const subscribeToMessages = (
             sender:sender_id(id, name, profile_photo_url)
           `)
           .eq('id', payload.new.id)
-          .single();
+          .single() as { data: MessageQueryResult | null; error: any };
 
         if (error) {
           console.error('🔍 [subscribeToMessages] Error fetching new message details:', error);
           onError('Failed to fetch new message details');
+          return;
+        }
+
+        if (!message) {
+          onError('New message not found');
           return;
         }
 
@@ -460,7 +505,7 @@ export const subscribeToConversations = (
       async (payload) => {
         console.log('🔍 [subscribeToConversations] Conversation update received:', payload);
 
-        // Fetch the complete conversation with participant info
+        // Fetch the complete conversation with participant info using explicit type assertion
         const { data: conversation, error } = await supabase
           .from('conversations')
           .select(`
@@ -469,11 +514,16 @@ export const subscribeToConversations = (
             participant_2:participant_2_id(id, name, username, profile_photo_url)
           `)
           .eq('id', payload.new.id)
-          .single();
+          .single() as { data: ConversationQueryResult | null; error: any };
 
         if (error) {
           console.error('🔍 [subscribeToConversations] Error fetching conversation details:', error);
           onError('Failed to fetch conversation details');
+          return;
+        }
+
+        if (!conversation) {
+          onError('Updated conversation not found');
           return;
         }
 
