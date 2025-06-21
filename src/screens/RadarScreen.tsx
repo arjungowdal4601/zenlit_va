@@ -201,7 +201,7 @@ export const RadarScreen: React.FC<Props> = ({
 
       if (mountedRef.current) {
         setUsers(transformedUsers);
-        console.log(`🔄 RADAR DEBUG: Set ${transformedUsers.length} users in same location bucket`);
+        console.log(\`🔄 RADAR DEBUG: Set ${transformedUsers.length} users in same location bucket`);
       }
     } catch (error) {
       console.error('🔄 RADAR DEBUG: Error in loadNearbyUsers:', error);
@@ -539,7 +539,7 @@ export const RadarScreen: React.FC<Props> = ({
                   ) : (
                     <MapPinIcon className="w-4 h-4 text-gray-500" />
                   )}
-                  <span className={`text-xs ${
+                  <span className={\`text-xs ${
                     isLocationTracking ? 'text-green-400' : 
                     currentLocation ? 'text-blue-400' : 'text-gray-400'
                   }`}>
@@ -568,12 +568,12 @@ export const RadarScreen: React.FC<Props> = ({
                 <button
                   onClick={handleLocationSharingToggle}
                   disabled={isRequestingLocation}
-                  className={`relative w-12 h-6 rounded-full transition-colors ${
+                  className={\`relative w-12 h-6 rounded-full transition-colors ${
                     locationSharingEnabled ? 'bg-green-600' : 'bg-gray-600'
                   } ${isRequestingLocation ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   <div
-                    className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${
+                    className={\`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${
                       locationSharingEnabled ? 'translate-x-7' : 'translate-x-1'
                     }`}
                   />
@@ -591,7 +591,7 @@ export const RadarScreen: React.FC<Props> = ({
                 disabled={isRefreshing || !currentLocation}
                 className="flex items-center gap-1 text-xs text-gray-400 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                <ArrowPathIcon className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                <ArrowPathIcon className={\`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
                 Refresh
               </button>
             </div>
@@ -622,12 +622,12 @@ export const RadarScreen: React.FC<Props> = ({
           </div>
           <button
             onClick={handleRadarVisibilityToggle}
-            className={`relative w-12 h-6 rounded-full transition-colors ${
+            className={\`relative w-12 h-6 rounded-full transition-colors ${
               hideFromRadar ? 'bg-orange-600' : 'bg-green-600'
             }`}
           >
             <div
-              className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${
+              className={\`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${
                 hideFromRadar ? 'translate-x-1' : 'translate-x-7'
               }`}
             />
@@ -662,7 +662,7 @@ export const RadarScreen: React.FC<Props> = ({
       {isPulling && pullDistance > 0 && (
         <div className="flex justify-center py-2 bg-gray-900/50">
           <div className="flex items-center gap-2">
-            <div className={`w-4 h-4 border-2 border-blue-500 rounded-full transition-transform ${
+            <div className={\`w-4 h-4 border-2 border-blue-500 rounded-full transition-transform ${
               pullDistance > 60 ? 'border-t-transparent animate-spin' : ''
             }`} />
             <span className="text-xs text-blue-400">
@@ -677,7 +677,7 @@ export const RadarScreen: React.FC<Props> = ({
         ref={scrollRef}
         className="px-4 py-4 space-y-4 pb-20 overflow-y-auto"
         style={{ 
-          transform: `translateY(${Math.min(pullDistance * 0.5, 50)}px)`,
+          transform: \`translateY(${Math.min(pullDistance * 0.5, 50)}px)`,
           transition: isPulling ? 'none' : 'transform 0.3s ease'
         }}
         onTouchStart={handleTouchStart}

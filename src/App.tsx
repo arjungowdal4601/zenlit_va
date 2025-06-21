@@ -420,7 +420,7 @@ export default function App() {
             <div className="flex justify-around items-center py-2 px-4 h-16">
               <button
                 onClick={() => handleTabChange('radar')}
-                className={`nav-button-mobile flex flex-col items-center justify-center p-2 rounded-lg transition-colors ${
+                className={\`nav-button-mobile flex flex-col items-center justify-center p-2 rounded-lg transition-colors ${
                   activeTab === 'radar' ? 'text-blue-500' : 'text-gray-400'
                 }`}
               >
@@ -430,7 +430,7 @@ export default function App() {
               
               <button
                 onClick={() => handleTabChange('feed')}
-                className={`nav-button-mobile flex flex-col items-center justify-center p-2 rounded-lg transition-colors ${
+                className={\`nav-button-mobile flex flex-col items-center justify-center p-2 rounded-lg transition-colors ${
                   activeTab === 'feed' ? 'text-blue-500' : 'text-gray-400'
                 }`}
               >
@@ -440,7 +440,7 @@ export default function App() {
 
               <button
                 onClick={() => handleTabChange('create')}
-                className={`nav-button-mobile flex flex-col items-center justify-center p-2 rounded-lg transition-colors ${
+                className={\`nav-button-mobile flex flex-col items-center justify-center p-2 rounded-lg transition-colors ${
                   activeTab === 'create' ? 'text-blue-500' : 'text-gray-400'
                 }`}
               >
@@ -450,7 +450,7 @@ export default function App() {
 
               <button
                 onClick={() => handleTabChange('messages')}
-                className={`nav-button-mobile flex flex-col items-center justify-center p-2 rounded-lg transition-colors ${
+                className={\`nav-button-mobile flex flex-col items-center justify-center p-2 rounded-lg transition-colors ${
                   activeTab === 'messages' ? 'text-blue-500' : 'text-gray-400'
                 }`}
               >
@@ -460,7 +460,7 @@ export default function App() {
               
               <button
                 onClick={() => handleTabChange('profile')}
-                className={`nav-button-mobile flex flex-col items-center justify-center p-2 rounded-lg transition-colors ${
+                className={\`nav-button-mobile flex flex-col items-center justify-center p-2 rounded-lg transition-colors ${
                   activeTab === 'profile' ? 'text-blue-500' : 'text-gray-400'
                 }`}
               >
