@@ -137,7 +137,7 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
     }
   };
 
-  // SIGNUP STEP 2: Verify OTP
+  // SIGNUP STEP 2: Verify OTP (DO NOT AUTHENTICATE YET)
   const handleVerifyOTP = async () => {
     setError(null);
 
@@ -150,20 +150,17 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
 
     try {
       console.log('🔍 DEBUG: Verifying OTP for:', formData.email, 'with code:', formData.otp);
+      
+      // IMPORTANT: We're just verifying the OTP, not authenticating yet
       const result = await verifySignupOTP(formData.email, formData.otp);
       
       console.log('🔍 DEBUG: OTP verification result:', result);
       
       if (result.success) {
         console.log('🔍 DEBUG: OTP verified successfully, moving to password step');
-        // CRITICAL: Move to password creation step
+        // Move to password creation step WITHOUT authenticating
         setSignupStep('password');
         console.log('🔍 DEBUG: signupStep should now be "password"');
-        
-        // Force a re-render to ensure the state change takes effect
-        setTimeout(() => {
-          console.log('🔍 DEBUG: After timeout, signupStep is:', signupStep);
-        }, 100);
       } else {
         console.error('OTP verification failed:', result.error);
         setError(result.error || 'Invalid verification code');
@@ -176,7 +173,7 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
     }
   };
 
-  // SIGNUP STEP 3: Set password (NEW STEP)
+  // SIGNUP STEP 3: Set password and complete signup
   const handleSetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -201,14 +198,15 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
     setIsLoading(true);
 
     try {
-      console.log('Setting password for authenticated user');
+      console.log('🔍 DEBUG: Setting password for authenticated user');
       const result = await setUserPassword(formData.password);
       
       if (result.success) {
-        console.log('Password set successfully');
+        console.log('🔍 DEBUG: Password set successfully, completing signup');
         setSignupStep('complete');
         // Auto-proceed to app after a short delay
         setTimeout(() => {
+          console.log('🔍 DEBUG: Calling onLogin to complete signup flow');
           onLogin();
         }, 2000);
       } else {
