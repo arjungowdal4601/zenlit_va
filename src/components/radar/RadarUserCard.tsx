@@ -134,7 +134,7 @@ export const RadarUserCard: React.FC<Props> = ({ user, onMessage, onViewProfile 
               <button
                 onClick={() => onMessage(user)}
                 className="bg-green-600 text-white px-4 py-3 rounded-xl hover:bg-green-700 active:scale-95 transition-all"
-                title="Send message (very close!)"
+                title="Send message"
               >
                 <ChatBubbleLeftIcon className="w-5 h-5" />
               </button>

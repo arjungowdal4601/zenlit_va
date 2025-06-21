@@ -136,11 +136,12 @@ export const PasswordResetScreen: React.FC<Props> = ({ onBack }) => {
     setIsLoading(true);
     
     try {
-      console.log('Verifying password reset OTP for:', formData.email);
+      console.log('🔍 DEBUG: Verifying password reset OTP for:', formData.email);
       const result = await verifyPasswordResetOTP(formData.email, formData.otp);
       
       if (result.success) {
-        console.log('Password reset OTP verified successfully');
+        console.log('🔍 DEBUG: OTP verified successfully, moving to password step WITHOUT auto-login');
+        // Move to password creation step WITHOUT authenticating
         setStep('newPassword');
       } else {
         console.error('Password reset OTP verification failed:', result.error);
@@ -171,26 +172,31 @@ export const PasswordResetScreen: React.FC<Props> = ({ onBack }) => {
     setIsLoading(true);
     
     try {
-      console.log('🔄 Updating password for authenticated user...');
+      console.log('🔄 Updating password...');
       
-      // Update the user's password using Supabase
-      const { data, error } = await supabase.auth.updateUser({
-        password: formData.newPassword
-      });
+      // For recovery flow, update password directly
+      if (isRecoveryFlow) {
+        const { data, error } = await supabase.auth.updateUser({
+          password: formData.newPassword
+        });
 
-      if (error) {
-        console.error('❌ Password update failed:', error);
-        setError(error.message || 'Failed to update password');
-        return;
+        if (error) {
+          console.error('❌ Password update failed:', error);
+          setError(error.message || 'Failed to update password');
+          return;
+        }
+
+        console.log('✅ Password updated successfully via recovery flow');
+        
+        // Sign out the user after password reset
+        await supabase.auth.signOut();
+        
+        setStep('success');
+      } else {
+        // For OTP flow, we need to authenticate first then update password
+        // This should not happen in the current flow, but keeping for safety
+        setError('Invalid password reset flow. Please try again.');
       }
-
-      console.log('✅ Password updated successfully');
-      setStep('success');
-      
-      // Auto-redirect after showing success message
-      setTimeout(() => {
-        onBack(); // This will take them back to login
-      }, 3000);
 
     } catch (error) {
       console.error('❌ Password update error:', error);
@@ -342,10 +348,7 @@ export const PasswordResetScreen: React.FC<Props> = ({ onBack }) => {
         </div>
         <h2 className="text-2xl font-bold text-white mb-2">Set New Password</h2>
         <p className="text-gray-400">
-          {isRecoveryFlow 
-            ? 'Please set a new password for your account' 
-            : 'Choose a strong password for your account'
-          }
+          Choose a strong password for your account
         </p>
       </div>
 
@@ -432,7 +435,7 @@ export const PasswordResetScreen: React.FC<Props> = ({ onBack }) => {
       </div>
       <h2 className="text-2xl font-bold text-white mb-2">Password Updated!</h2>
       <p className="text-gray-400 mb-6">
-        Your password has been successfully updated. You will be redirected to the login page shortly.
+        Your password has been successfully updated. You can now sign in with your new password.
       </p>
       
       <div className="bg-green-900/30 border border-green-700 rounded-lg p-4">

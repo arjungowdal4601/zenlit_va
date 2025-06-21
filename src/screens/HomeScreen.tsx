@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { PostsFeed } from '../components/post/PostsFeed';
 import { UserProfile } from '../components/profile/UserProfile';
 import { User, Post } from '../types';
-import { ChevronLeftIcon } from '@heroicons/react/24/outline';
+import { ChevronLeftIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 import { supabase } from '../lib/supabase';
 import { getAllPosts } from '../lib/posts';
 import { requestUserLocation, getRadarUsers } from '../lib/location';
@@ -15,34 +15,68 @@ export const HomeScreen: React.FC<Props> = ({ userGender }) => {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [locationSharingEnabled, setLocationSharingEnabled] = useState(false);
   
   useEffect(() => {
-    loadFilteredPosts();
+    checkLocationSharingAndLoadPosts();
   }, []);
 
-  const loadFilteredPosts = async () => {
+  const checkLocationSharingAndLoadPosts = async () => {
     try {
-      console.log('🔍 [HomeScreen] Loading filtered posts...');
+      console.log('🔍 [HomeScreen] Checking location sharing status...');
       
       const { data: { user }, error } = await supabase.auth.getUser();
       if (error || !user) {
         console.error('🔍 [HomeScreen] No authenticated user');
         setPosts([]);
+        setIsLoading(false);
         return;
       }
 
-      // Get user's location for radar filtering
-      const locationResult = await requestUserLocation();
-      if (!locationResult.success || !locationResult.location) {
-        console.log('🔍 [HomeScreen] No location available, showing all posts');
-        // If no location, show all posts
-        const allPosts = await getAllPosts(50);
-        setPosts(allPosts);
+      // Check if user has location data (indicates location sharing is enabled)
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('latitude, longitude')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (profileError) {
+        console.error('🔍 [HomeScreen] Error checking profile:', profileError);
+        setPosts([]);
+        setIsLoading(false);
         return;
       }
+
+      const hasLocationData = !!(profile?.latitude && profile?.longitude);
+      setLocationSharingEnabled(hasLocationData);
+
+      if (!hasLocationData) {
+        console.log('🔍 [HomeScreen] Location sharing disabled, no posts shown');
+        setPosts([]);
+        setIsLoading(false);
+        return;
+      }
+
+      // Location sharing is enabled, load filtered posts
+      await loadFilteredPosts(user.id, {
+        latitude: profile.latitude,
+        longitude: profile.longitude,
+        timestamp: Date.now()
+      });
+
+    } catch (err) {
+      console.error('🔍 [HomeScreen] Error checking location sharing:', err);
+      setPosts([]);
+      setIsLoading(false);
+    }
+  };
+
+  const loadFilteredPosts = async (currentUserId: string, location: any) => {
+    try {
+      console.log('🔍 [HomeScreen] Loading filtered posts for location sharing users...');
 
       // Get radar users (users in same location bucket with visibility on)
-      const radarResult = await getRadarUsers(user.id, locationResult.location);
+      const radarResult = await getRadarUsers(currentUserId, location);
       if (!radarResult.success || !radarResult.userIds) {
         console.log('🔍 [HomeScreen] No radar users found');
         setPosts([]);
@@ -127,6 +161,11 @@ export const HomeScreen: React.FC<Props> = ({ userGender }) => {
     }
   };
 
+  const handleEnableLocationSharing = () => {
+    // Navigate to radar screen to enable location sharing
+    window.location.hash = '#radar';
+  };
+
   if (selectedUser) {
     return (
       <div className="min-h-full bg-black">
@@ -164,19 +203,48 @@ export const HomeScreen: React.FC<Props> = ({ userGender }) => {
         </div>
       </div>
 
+      {/* Location Sharing Required Notice */}
+      {!locationSharingEnabled && (
+        <div className="px-4 py-6 bg-blue-900/20 border-b border-blue-700/30">
+          <div className="text-center">
+            <ExclamationTriangleIcon className="w-16 h-16 text-blue-500 mx-auto mb-4" />
+            <h2 className="text-lg font-semibold text-white mb-2">Location Sharing Required</h2>
+            <p className="text-blue-300 mb-4 text-sm">
+              Enable location sharing to see posts from people nearby
+            </p>
+            <button
+              onClick={handleEnableLocationSharing}
+              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 active:scale-95 transition-all font-medium"
+            >
+              Enable Location Sharing
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Posts Feed */}
       <div className="px-4 py-4 space-y-6 pb-20">
-        {posts.length > 0 ? (
-          <PostsFeed posts={posts} onUserClick={handleUserClick} />
+        {locationSharingEnabled ? (
+          posts.length > 0 ? (
+            <PostsFeed posts={posts} onUserClick={handleUserClick} />
+          ) : (
+            <div className="text-center py-12">
+              <div className="w-16 h-16 bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+              </div>
+              <p className="text-gray-400 mb-2">No posts from nearby users</p>
+              <p className="text-gray-500 text-sm">Posts from people in your area will appear here!</p>
+            </div>
+          )
         ) : (
           <div className="text-center py-12">
             <div className="w-16 h-16 bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
+              <ExclamationTriangleIcon className="w-8 h-8 text-gray-400" />
             </div>
-            <p className="text-gray-400 mb-2">No posts from nearby users</p>
-            <p className="text-gray-500 text-sm">Posts from people in your area will appear here!</p>
+            <p className="text-gray-400 mb-2">Location sharing is disabled</p>
+            <p className="text-gray-500 text-sm">Enable location sharing to see posts from nearby users</p>
           </div>
         )}
       </div>

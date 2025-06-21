@@ -3,7 +3,7 @@ import { ChatList } from '../components/messaging/ChatList';
 import { ChatWindow } from '../components/messaging/ChatWindow';
 import { User, Message } from '../types';
 import { supabase } from '../lib/supabase';
-import { MagnifyingGlassIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { MagnifyingGlassIcon, XMarkIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 import { 
   getUserConversations, 
   getOrCreateConversation, 
@@ -38,6 +38,7 @@ export const MessagesScreen: React.FC<Props> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [radarUserIds, setRadarUserIds] = useState<string[]>([]);
+  const [locationSharingEnabled, setLocationSharingEnabled] = useState(false);
 
   // Use refs to store subscription instances and prevent multiple subscriptions
   const conversationSubscriptionRef = useRef<any>(null);
@@ -49,10 +50,10 @@ export const MessagesScreen: React.FC<Props> = ({
   }, []);
 
   useEffect(() => {
-    if (initialSelectedUser && currentUserId) {
+    if (initialSelectedUser && currentUserId && locationSharingEnabled) {
       handleSelectUserForChat(initialSelectedUser);
     }
-  }, [initialSelectedUser, currentUserId]);
+  }, [initialSelectedUser, currentUserId, locationSharingEnabled]);
 
   // Handle bottom nav visibility
   useEffect(() => {
@@ -63,7 +64,7 @@ export const MessagesScreen: React.FC<Props> = ({
 
   // Separate useEffect for conversation subscriptions
   useEffect(() => {
-    if (!currentUserId || isSubscribedToConversations.current) return;
+    if (!currentUserId || isSubscribedToConversations.current || !locationSharingEnabled) return;
 
     const setupConversationSubscription = async () => {
       try {
@@ -123,7 +124,7 @@ export const MessagesScreen: React.FC<Props> = ({
       }
       isSubscribedToConversations.current = false;
     };
-  }, [currentUserId]);
+  }, [currentUserId, locationSharingEnabled]);
 
   // Separate useEffect for message subscriptions
   useEffect(() => {
@@ -196,16 +197,35 @@ export const MessagesScreen: React.FC<Props> = ({
     try {
       console.log('🔍 [MessagesScreen] Loading current user...');
       
-      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      const { data: { user } } = await supabase.auth.getUser();
       
-      if (!currentUser) {
+      if (!user) {
         console.error('🔍 [MessagesScreen] No current user found');
         setIsLoading(false);
         return;
       }
 
-      console.log('🔍 [MessagesScreen] Current user loaded:', currentUser.id);
-      setCurrentUserId(currentUser.id);
+      console.log('🔍 [MessagesScreen] Current user loaded:', user.id);
+      setCurrentUserId(user.id);
+
+      // Check if user has location data (indicates location sharing is enabled)
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('latitude, longitude')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (profileError) {
+        console.error('🔍 [MessagesScreen] Error checking profile:', profileError);
+        setLocationSharingEnabled(false);
+        setIsLoading(false);
+        return;
+      }
+
+      const hasLocationData = !!(profile?.latitude && profile?.longitude);
+      setLocationSharingEnabled(hasLocationData);
+      console.log('🔍 [MessagesScreen] Location sharing enabled:', hasLocationData);
+
     } catch (error) {
       console.error('🔍 [MessagesScreen] Error loading current user:', error);
     } finally {
@@ -280,6 +300,11 @@ export const MessagesScreen: React.FC<Props> = ({
       return;
     }
 
+    if (!locationSharingEnabled) {
+      alert('Please enable location sharing to send messages.');
+      return;
+    }
+
     // Check if user is in radar (if radar filtering is enabled)
     if (radarUserIds.length > 0 && !radarUserIds.includes(user.id)) {
       alert('You can only message people who are nearby in your radar.');
@@ -346,6 +371,11 @@ export const MessagesScreen: React.FC<Props> = ({
     setSearchQuery('');
   };
 
+  const handleEnableLocationSharing = () => {
+    // Navigate to radar screen to enable location sharing
+    window.location.hash = '#radar';
+  };
+
   // Filter conversations based on search query
   const filteredConversations = useMemo(() => {
     if (!searchQuery.trim()) {
@@ -372,6 +402,35 @@ export const MessagesScreen: React.FC<Props> = ({
         <div className="text-center">
           <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-gray-400">Loading messages...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show location sharing required screen
+  if (!locationSharingEnabled) {
+    return (
+      <div className="h-full bg-black flex flex-col">
+        {/* Header */}
+        <div className="px-4 py-3 bg-black border-b border-gray-800 flex-shrink-0">
+          <h2 className="text-xl font-bold text-white">Messages</h2>
+        </div>
+
+        {/* Location sharing required content */}
+        <div className="flex-1 flex items-center justify-center p-4">
+          <div className="text-center max-w-md">
+            <ExclamationTriangleIcon className="w-16 h-16 text-blue-500 mx-auto mb-4" />
+            <h2 className="text-lg font-semibold text-white mb-2">Location Sharing Required</h2>
+            <p className="text-gray-300 mb-6 text-sm">
+              Enable location sharing to send and receive messages from people nearby
+            </p>
+            <button
+              onClick={handleEnableLocationSharing}
+              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 active:scale-95 transition-all font-medium"
+            >
+              Enable Location Sharing
+            </button>
+          </div>
         </div>
       </div>
     );

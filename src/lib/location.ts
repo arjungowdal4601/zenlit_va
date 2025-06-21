@@ -91,7 +91,7 @@ export const requestUserLocation = async (): Promise<{
   }
 };
 
-// Watch user's location for changes (dynamic tracking)
+// Watch user's location for changes (dynamic tracking) - updates every 60 seconds
 export const watchUserLocation = (
   onLocationUpdate: (location: UserLocation) => void,
   onError: (error: string) => void
@@ -107,50 +107,36 @@ export const watchUserLocation = (
       return null;
     }
 
-    console.log('Starting location watch...');
+    console.log('Starting location watch with 60-second updates...');
 
-    const watchId = navigator.geolocation.watchPosition(
-      (position) => {
-        // Round coordinates to 2 decimal places for privacy and performance
-        const location: UserLocation = {
-          latitude: Number(position.coords.latitude.toFixed(2)),
-          longitude: Number(position.coords.longitude.toFixed(2)),
-          accuracy: position.coords.accuracy,
-          timestamp: Date.now()
-        };
+    // Use setInterval for 60-second updates instead of watchPosition
+    let lastLocation: UserLocation | null = null;
 
-        console.log('Location updated:', location);
-        onLocationUpdate(location);
-      },
-      (error) => {
-        console.error('Location watch error:', error);
-        
-        let errorMessage = 'Failed to track location. ';
-        switch (error.code) {
-          case error.PERMISSION_DENIED:
-            errorMessage += 'Location access was denied.';
-            break;
-          case error.POSITION_UNAVAILABLE:
-            errorMessage += 'Location information is unavailable.';
-            break;
-          case error.TIMEOUT:
-            errorMessage += 'Location request timed out.';
-            break;
-          default:
-            errorMessage += error.message || 'Unknown error occurred.';
-            break;
+    const updateLocation = async () => {
+      try {
+        const result = await requestUserLocation();
+        if (result.success && result.location) {
+          // Only update if location bucket has changed
+          if (!lastLocation || hasLocationChanged(lastLocation, result.location)) {
+            console.log('Location bucket changed, updating...');
+            lastLocation = result.location;
+            onLocationUpdate(result.location);
+          }
+        } else {
+          onError(result.error || 'Failed to get location');
         }
-        
-        onError(errorMessage);
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 60000, // Increased to 60 seconds timeout for watch
-        maximumAge: 30000 // 30 seconds cache for dynamic updates
+      } catch (error: any) {
+        onError(error.message || 'Location update failed');
       }
-    );
+    };
 
-    return watchId;
+    // Initial location update
+    updateLocation();
+
+    // Set up 60-second interval
+    const intervalId = setInterval(updateLocation, 60000); // 60 seconds
+
+    return intervalId as any; // Return as number for compatibility
 
   } catch (error: any) {
     console.error('Error starting location watch:', error);
@@ -162,7 +148,7 @@ export const watchUserLocation = (
 // Stop watching user's location
 export const stopWatchingLocation = (watchId: number): void => {
   try {
-    navigator.geolocation.clearWatch(watchId);
+    clearInterval(watchId);
     console.log('Location watch stopped');
   } catch (error) {
     console.error('Error stopping location watch:', error);
